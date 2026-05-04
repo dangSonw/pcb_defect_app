@@ -1,0 +1,10 @@
+{
+  "device": "CPU",
+  "model_type": "yolov26l",
+  "model_path": "D:/project_nckh_pcb_jetson/pcb_defect_app/weights/yolo26x.pt",
+  "dataset_path": "./dataset",
+  "output_dir": "./outputs",
+  "model": "yolov26l",
+  "dataset": "./dataset",
+  "output": "./outputs"
+}
