@@ -2,7 +2,10 @@
 import json
 import time
 import os
-from core.dataset_manager import save_annotation, split_dataset
+import cv2
+import tempfile
+from core.dataset_manager import save_annotation, split_dataset, load_system_config, auto_slice_image
+from core.camera_service import get_camera
 
 GALLERY_CSS = """
 <style>
@@ -26,9 +29,13 @@ GALLERY_CSS = """
 #horizontal-gallery button, #horizontal-gallery [data-testid="grid"] > * { 
     flex: 0 0 180px !important; 
     width: 180px !important; 
-    height: 160px !important;
+    height: 190px !important;
 }
-#horizontal-gallery img { object-fit: cover !important; border-radius: 8px; }
+#horizontal-gallery img { 
+    height: 145px !important;
+    object-fit: cover !important; 
+    border-radius: 8px; 
+}
 #horizontal-gallery::-webkit-scrollbar { height: 10px; }
 #horizontal-gallery::-webkit-scrollbar-thumb { background: #666; border-radius: 5px; }
 </style>
@@ -41,20 +48,30 @@ function() {
     if (!img) return;
 
     let canvas = document.querySelector('#label-canvas');
+    
+    const ratio = Math.min(img.clientWidth / img.naturalWidth, img.clientHeight / img.naturalHeight);
+    const actualWidth = img.naturalWidth * ratio;
+    const actualHeight = img.naturalHeight * ratio;
+    const padX = (img.clientWidth - actualWidth) / 2;
+    const padY = (img.clientHeight - actualHeight) / 2;
+
     if (!canvas) {
         canvas = document.createElement('canvas');
         canvas.id = 'label-canvas';
         canvas.style.position = 'absolute';
-        canvas.style.top = '0px';
-        canvas.style.left = '0px';
         canvas.style.cursor = 'crosshair';
         canvas.style.zIndex = '1000';
         img.parentElement.style.position = 'relative';
         img.parentElement.appendChild(canvas);
     }
     
-    canvas.width = img.clientWidth;
-    canvas.height = img.clientHeight;
+    canvas.style.left = padX + 'px';
+    canvas.style.top = padY + 'px';
+    canvas.style.width = actualWidth + 'px';
+    canvas.style.height = actualHeight + 'px';
+    canvas.width = actualWidth;
+    canvas.height = actualHeight;
+
     const ctx = canvas.getContext('2d');
     window.pcb_boxes = window.pcb_boxes || [];
 
@@ -66,6 +83,8 @@ function() {
             ctx.strokeRect(b[0]*canvas.width, b[1]*canvas.height, (b[2]-b[0])*canvas.width, (b[3]-b[1])*canvas.height);
         });
     }
+
+    drawAll();
 
     canvas.onmousedown = (e) => { this.startX = e.offsetX; this.startY = e.offsetY; this.isDrawing = true; };
     canvas.onmousemove = (e) => {
@@ -92,10 +111,12 @@ function() {
 }
 """
 
-def render(sys_dataset_path, sys_device):
+def render(sys_dataset_path, sys_device, camera_available=False):
     gr.HTML(GALLERY_CSS) 
     
     image_buffer = gr.State([])
+    annotated_images = gr.State([])
+    current_image_path = gr.State("")
     current_anno_list = gr.State([])
     class_counts = gr.State({})
     used_classes_state = gr.State([]) 
@@ -108,13 +129,18 @@ def render(sys_dataset_path, sys_device):
             ui_train = gr.Slider(0, 100, 70, label="Train %")
             ui_val = gr.Slider(0, 100, 20, label="Val %")
             ui_test = gr.Slider(0, 100, 10, label="Test %")
+            ui_bg_ratio = gr.Slider(0, 100, 10, label="Giữ lại ảnh Trống/Background (%)")
             btn_split = gr.Button("THỰC THI CHIA", variant="secondary")
 
         with gr.Column(scale=4):
             ui_gallery = gr.Gallery(label="Bộ nhớ tạm", elem_id="horizontal-gallery", columns=10, rows=1, height=220)
             with gr.Row():
-                ui_file_input = gr.File(label="Tải ảnh", file_count="multiple", file_types=["image"], height=150)
-                ui_cam_input = gr.Image(label="Chụp Camera", sources=["webcam"], type="numpy")
+                with gr.Column():
+                    ui_file_input = gr.File(label="Tải ảnh", file_count="multiple", file_types=["image"], height=150)
+                    ui_enable_sahi = gr.Checkbox(label="✂️ Bật tự động cắt ảnh (SAHI)", value=False)
+                with gr.Column():
+                    ui_cam_input = gr.Image(label="Chụp Webcam", sources=["webcam"], type="numpy", height=100)
+                    btn_csi_capture = gr.Button("🎥 Chụp Camera CSI", variant="primary", interactive=camera_available)
 
             gr.Markdown("---")
             with gr.Row():
@@ -123,28 +149,64 @@ def render(sys_dataset_path, sys_device):
                     ui_current_box_data = gr.Textbox(value="", elem_id="box-transfer", interactive=True)
                     ui_class_input = gr.Textbox(label="Nhập Class (Nhấn Enter)", placeholder="Ví dụ: short_circuit")
                     btn_confirm_box = gr.Button("XÁC NHẬN BOX", variant="primary")
+                    btn_undo_box = gr.Button("⏪ Hủy Box Vừa Vẽ", variant="secondary")
 
             with gr.Row():
                 btn_save_final = gr.Button("LƯU TOÀN BỘ GÁN NHÃN", variant="primary")
                 ui_status = gr.Textbox(label="Trạng thái", interactive=False, value="Sẵn sàng")
 
-    def add_from_files(files, current_buffer):
-        if not files: return current_buffer, current_buffer, gr.update()
+    def update_gallery_view(buffer, ann_list):
+        return [(p, "✅") if p in ann_list else p for p in buffer]
+
+    def add_from_files(files, current_buffer, ann_list, enable_sahi):
+        if not files: return update_gallery_view(current_buffer, ann_list), current_buffer, gr.update()
         new_buffer = list(current_buffer)
-        existing_names = {os.path.basename(p) for p in new_buffer}
         for f in files:
-            if os.path.basename(f.name) not in existing_names:
-                new_buffer.append(f.name)
-        # Reset ui_file_input về None để cho phép tải lại file cùng tên mà không bị kẹt
-        return new_buffer, new_buffer, None
+            sliced_paths = auto_slice_image(f.name, enable_sahi)
+            for sp in sliced_paths:
+                if sp not in new_buffer:
+                    new_buffer.append(sp)
+        return update_gallery_view(new_buffer, ann_list), new_buffer, None
 
-    ui_file_input.change(add_from_files, [ui_file_input, image_buffer], [ui_gallery, image_buffer, ui_file_input])
+    ui_file_input.change(add_from_files, [ui_file_input, image_buffer, annotated_images, ui_enable_sahi], [ui_gallery, image_buffer, ui_file_input])
 
-    def on_gallery_select(evt: gr.SelectData):
-        img_path = evt.value['image']['path'] if isinstance(evt.value, dict) else evt.value
-        return img_path, gr.update(visible=True), [], {}, "<i>Sẵn sàng gán nhãn</i>"
+    def capture_csi(current_buffer, ann_list, enable_sahi):
+        cam = get_camera()
+        if not cam.is_running:
+            cam.start()
+        tmp_dir = tempfile.gettempdir()
+        filepath, msg = cam.capture(tmp_dir)
+        if filepath and os.path.exists(filepath):
+            new_buffer = []  # Xoá bộ nhớ tạm cũ, chỉ hiển thị ảnh vừa chụp
+            sliced_paths = auto_slice_image(filepath, enable_sahi)
+            for sp in sliced_paths:
+                if sp not in new_buffer:
+                    new_buffer.append(sp)
+            return update_gallery_view(new_buffer, ann_list), new_buffer
+        return update_gallery_view(current_buffer, ann_list), current_buffer
 
-    ui_gallery.select(on_gallery_select, None, [ui_work_img, ui_label_column, current_anno_list, class_counts, ui_anno_display])
+    btn_csi_capture.click(capture_csi, [image_buffer, annotated_images, ui_enable_sahi], [ui_gallery, image_buffer])
+
+    def add_from_webcam(img_array, current_buffer, ann_list, enable_sahi):
+        if img_array is None: return update_gallery_view(current_buffer, ann_list), current_buffer, None
+        tmp_dir = tempfile.gettempdir()
+        filepath = os.path.join(tmp_dir, f"webcam_{int(time.time())}.jpg")
+        cv2.imwrite(filepath, cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR))
+        new_buffer = list(current_buffer)
+        sliced_paths = auto_slice_image(filepath, enable_sahi)
+        for sp in sliced_paths:
+            if sp not in new_buffer:
+                new_buffer.append(sp)
+        return update_gallery_view(new_buffer, ann_list), new_buffer, None
+
+    ui_cam_input.change(add_from_webcam, [ui_cam_input, image_buffer, annotated_images, ui_enable_sahi], [ui_gallery, image_buffer, ui_cam_input])
+
+    def on_gallery_select(evt: gr.SelectData, buffer):
+        img_path = buffer[evt.index] if evt.index < len(buffer) else ""
+        return img_path, img_path, gr.update(visible=True), [], {}, "<i>Sẵn sàng gán nhãn</i>"
+
+    JS_CLEAR_BOXES = "function(){ window.pcb_boxes = []; const canvas = document.querySelector('#label-canvas'); if(canvas){ canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height); } }"
+    ui_gallery.select(on_gallery_select, [image_buffer], [current_image_path, ui_work_img, ui_label_column, current_anno_list, class_counts, ui_anno_display]).then(None, None, None, js=JS_CLEAR_BOXES)
     ui_work_img.change(fn=None, js=JS_ANNOTATOR)
 
     def confirm_one_box(box_json, label_name, anno_list, counts):
@@ -177,5 +239,32 @@ def render(sys_dataset_path, sys_device):
     ui_class_input.submit(confirm_one_box, [ui_current_box_data, ui_class_input, current_anno_list, class_counts], [ui_class_input, current_anno_list, class_counts, ui_anno_display])
     btn_confirm_box.click(confirm_one_box, [ui_current_box_data, ui_class_input, current_anno_list, class_counts], [ui_class_input, current_anno_list, class_counts, ui_anno_display])
 
-    btn_save_final.click(fn=save_annotation, inputs=[ui_work_img, current_anno_list, sys_dataset_path, used_classes_state], outputs=[ui_status, used_classes_state])
-    btn_split.click(fn=split_dataset, inputs=[sys_dataset_path, ui_train, ui_val, ui_test], outputs=[ui_status])
+    def undo_last_box(anno_list, counts):
+        if not anno_list:
+            return anno_list, counts, "<i>Chưa có box nào</i>"
+        last_ann = anno_list.pop()
+        label = last_ann['label']
+        if label in counts:
+            counts[label] -= 1
+            if counts[label] <= 0:
+                del counts[label]
+        html = "<ul>" + "".join([f"<li><b>{k}</b>: {v}</li>" for k, v in counts.items()]) + "</ul>" if counts else "<i>Chưa có box nào</i>"
+        return anno_list, counts, html
+
+    JS_UNDO = "function(){ if(window.pcb_boxes && window.pcb_boxes.length > 0) { window.pcb_boxes.pop(); } const canvas = document.querySelector('#label-canvas'); if(canvas) { const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height); window.pcb_boxes.forEach(b => { ctx.strokeStyle='#00ff00'; ctx.lineWidth=2; ctx.strokeRect(b[0]*canvas.width, b[1]*canvas.height, (b[2]-b[0])*canvas.width, (b[3]-b[1])*canvas.height); }); } }"
+    btn_undo_box.click(undo_last_box, [current_anno_list, class_counts], [current_anno_list, class_counts, ui_anno_display]).then(None, None, None, js=JS_UNDO)
+
+    def handle_save_annotation(image, anno_list, dataset_path, used_classes, current_img_path, ann_list, current_buffer):
+        status, new_used_classes = save_annotation(image, anno_list, dataset_path, used_classes)
+        new_ann_list = list(ann_list)
+        if "THÀNH CÔNG" in status and current_img_path and current_img_path not in new_ann_list:
+            new_ann_list.append(current_img_path)
+        gallery_items = update_gallery_view(current_buffer, new_ann_list)
+        return status, new_used_classes, new_ann_list, gallery_items
+
+    btn_save_final.click(
+        fn=handle_save_annotation, 
+        inputs=[ui_work_img, current_anno_list, sys_dataset_path, used_classes_state, current_image_path, annotated_images, image_buffer], 
+        outputs=[ui_status, used_classes_state, annotated_images, ui_gallery]
+    )
+    btn_split.click(fn=split_dataset, inputs=[sys_dataset_path, ui_train, ui_val, ui_test, ui_bg_ratio], outputs=[ui_status])

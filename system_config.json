@@ -1,10 +1,16 @@
 {
-  "device": "CPU",
-  "model_type": "yolov26l",
-  "model_path": "D:/project_nckh_pcb_jetson/pcb_defect_app/weights/yolo26x.pt",
-  "dataset_path": "./dataset",
-  "output_dir": "./outputs",
-  "model": "yolov26l",
-  "dataset": "./dataset",
-  "output": "./outputs"
+  "device": "Jetson GPU (TensorRT/CUDA)",
+  "model_type": "yolov11n",
+  "model_path": "weights/pcb.engine",
+  "dataset_path": "dataset",
+  "output_dir": "outputs",
+  "sahi_slice_size": 1280,
+  "sahi_overlap_ratio": 0.4,
+  "defect_classes": "short_circuit, open_circuit, missing_hole, mouse_bite, spur, copper_salvage",
+  "cam_width": 1280,
+  "cam_height": 720,
+  "cam_quality": 80,
+  "model": "yolov11n",
+  "dataset": "dataset",
+  "output": "outputs"
 }
