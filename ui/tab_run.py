@@ -96,8 +96,13 @@ def plc_worker():
             if current_m1020_state and not prev_m1020_state:
                 print("[PLC] Nhận lệnh chụp và rà quét AI (sườn lên M1020)")
                 try:
-                    # Bật M169 báo hiệu đang chụp và xử lý AI
+                    # Bật M169 báo hiệu đang chụp và xử lý AI, đồng thời reset M1020 về 0 để clear trigger
                     plc.batchwrite_bitunits("M169", [1])
+                    try:
+                        plc.batchwrite_bitunits("M1020", [0])
+                        print("[PLC] Đã gửi lệnh reset M1020 về 0")
+                    except Exception as reset_err:
+                        print(f"[PLC] Lỗi reset M1020: {reset_err}")
                     plc.batchwrite_bitunits("M170", [0])
                     plc.batchwrite_bitunits("M171", [0])
                     print("[PLC] Đã bật M169 (Đang xử lý)")
@@ -149,6 +154,15 @@ def plc_worker():
                         pass
                     time.sleep(2.0)  # hold output step 4 for 2s before resetting
                     SHARED_STATE["ai_flow_step"] = 0
+                    
+                    # Đọc lại trạng thái thực tế của M1020 sau thời gian xử lý và sleep lâu, tránh lệch sườn do delay
+                    try:
+                        read_data = plc.batchread_bitunits("M1020", 1)
+                        current_m1020_state = read_data[0]
+                        SHARED_STATE["plc_vars"]["M1020"] = current_m1020_state
+                        print(f"[PLC] Đọc lại trạng thái M1020 sau xử lý: {current_m1020_state}")
+                    except Exception as read_err:
+                        print(f"[PLC] Lỗi đọc lại M1020 sau xử lý: {read_err}")
             
             # Cập nhật trạng thái của M1020 cho lần lặp kế tiếp
             prev_m1020_state = current_m1020_state
