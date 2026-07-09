@@ -3,4 +3,4 @@ gradio>=4.0.0
 ultralytics>=8.1.0
 sahi>=0.11.14
 pandas>=2.0.0
-python3-opencv
+# python3-opencv

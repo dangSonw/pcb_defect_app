@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import gradio as gr
-from ui import tab_config, tab_train, tab_dataset, tab_export, tab_run
+from ui import tab_config, tab_train, tab_dataset, tab_export, tab_run, tab_pipeline
 from core.dataset_manager import load_system_config
 from core.camera_service import get_camera
 
@@ -45,6 +45,8 @@ with gr.Blocks(title="PCB Defect QA/QC") as app:
             tab_export.render(sys_device, sys_model_path)
         with gr.TabItem("5. Rà quét PCB (Inference)"):
             tab_run.render(sys_device, sys_model_path, sys_output_dir, camera_available, app)
+        with gr.TabItem("6. Pipeline AI (Full Flow)"):
+            tab_pipeline.render()
 
 if __name__ == "__main__":
     try:
