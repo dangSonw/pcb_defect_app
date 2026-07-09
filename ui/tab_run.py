@@ -97,7 +97,7 @@ def plc_worker():
                     continue
                     
                 prev_m1020_state = False  # Reset trạng thái khi kết nối lại
-                print(f"[PLC] Đang thử kết nối tới {PLC_STATE['ip']}:{PLC_STATE['port']}...")
+                print(f"[PLC] Trying to connect to {PLC_STATE['ip']}:{PLC_STATE['port']}...")
                 
                 # Khởi tạo lại Type3E mỗi lần connect để đảm bảo tạo Socket hoàn toàn mới
                 plc = pymcprotocol.Type3E()
@@ -108,7 +108,7 @@ def plc_worker():
                 plc.connect(PLC_STATE["ip"], PLC_STATE["port"])
                 PLC_STATE["connected"] = True
                 SHARED_STATE["plc_connected"] = True
-                print(f"[PLC] Đã kết nối thành công tới {PLC_STATE['ip']}:{PLC_STATE['port']}")
+                print(f"[PLC] Connected successfully to {PLC_STATE['ip']}:{PLC_STATE['port']}")
                 time.sleep(0.1) # Đợi PLC ổn định socket sau khi kết nối
                 
                 # Khởi tạo prev_m1020_state bằng giá trị hiện tại của PLC để tránh việc nhận nhầm sườn lên khi mới kết nối
@@ -134,11 +134,11 @@ def plc_worker():
             
             # Phát hiện sườn lên hoặc sườn xuống (thay đổi trạng thái)
             if current_m1020_state != prev_m1020_state:
-                print(f"[PLC] Nhận lệnh chụp và rà quét AI (thay đổi trạng thái M1020: {prev_m1020_state} -> {current_m1020_state})")
+                print(f"[PLC] Received capture and AI scan command (M1020 state changed: {prev_m1020_state} -> {current_m1020_state})")
                 try:
                     # Bật M169 báo hiệu đang chụp và xử lý AI, đồng thời xóa các tín hiệu OK/NG cũ
                     plc.batchwrite_bitunits("M169", [1, 0, 0])  # M169=1, M170=0, M171=0
-                    print("[PLC] Đã bật M169 (Đang xử lý) và xóa kết quả cũ")
+                    print("[PLC] Enabled M169 (Processing) and cleared old results")
                     
                     cfg = load_system_config()
                     out_dir = cfg.get("output_dir", "outputs")
@@ -169,20 +169,20 @@ def plc_worker():
                             
                             has_defect = "So loi detect: 0" not in log_text
                             apply_plc_result_state(plc, has_defect=has_defect)
-                            print(f"[PLC] Quét hoàn tất. M169=0, {'M171=1' if has_defect else 'M170=1'}")
+                            print(f"[PLC] Scan completed. M169=0, {'M171=1' if has_defect else 'M170=1'}")
                         else:
-                            print(f"[PLC] Cảnh báo: Lỗi nội bộ khi phân tích AI. Msg: {log_text}")
+                            print(f"[PLC] Warning: Internal error during AI analysis. Msg: {log_text}")
                             apply_plc_result_state(plc, has_defect=True)
                     else:
-                        print(f"[PLC] Cảnh báo: Không thể chụp ảnh từ Camera. Msg: {msg}")
+                        print(f"[PLC] Warning: Cannot capture image from Camera. Msg: {msg}")
                         apply_plc_result_state(plc, has_defect=True)
                 except Exception as proc_err:
-                    print(f"[PLC] Lỗi trong quá trình xử lý: {proc_err}")
+                    print(f"[PLC] Error during processing: {proc_err}")
                 finally:
                     # Tắt M169 khi hoàn thành (hoặc có lỗi)
                     try:
                         plc.batchwrite_bitunits("M169", [0])
-                        print("[PLC] Đã tắt M169 (Hoàn tất xử lý)")
+                        print("[PLC] Disabled M169 (Processing finished)")
                     except Exception:
                         pass
                     
@@ -197,18 +197,18 @@ def plc_worker():
                         read_data = plc.batchread_bitunits("M1020", 1)
                         current_m1020_state = read_data[0]
                         SHARED_STATE["plc_vars"]["M1020"] = current_m1020_state
-                        print(f"[PLC] Đọc lại trạng thái M1020 sau xử lý: {current_m1020_state}")
+                        print(f"[PLC] Reread M1020 state after processing: {current_m1020_state}")
                     except Exception as read_err:
-                        print(f"[PLC] Lỗi đọc lại M1020 sau xử lý: {read_err}")
+                        print(f"[PLC] Error rereading M1020 after processing: {read_err}")
             
             # Cập nhật trạng thái của M1020 cho lần lặp kế tiếp
             prev_m1020_state = current_m1020_state
                     
         except Exception as e:
             if PLC_STATE["connected"]:
-                print(f"[PLC] Lỗi mất kết nối: {e}")
+                print(f"[PLC] Disconnection error: {e}")
             else:
-                print(f"[PLC] Lỗi kết nối tới {PLC_STATE['ip']}:{PLC_STATE['port']} - Chi tiết: {e}")
+                print(f"[PLC] Error connecting to {PLC_STATE['ip']}:{PLC_STATE['port']} - Details: {e}")
             PLC_STATE["connected"] = False
             SHARED_STATE["plc_connected"] = False
             last_connect_time = time.time()  # Cập nhật thời gian mất kết nối để delay reconnect
@@ -284,7 +284,7 @@ def capture_from_csi(sys_output_dir):
         else:
             return None, msg
     except Exception as e:
-        return None, f"Lỗi: {e}"
+        return None, f"Error: {e}"
 
 def start_inference(
     sys_device,
@@ -305,11 +305,11 @@ def start_inference(
     
     if not in_image or not os.path.exists(in_image):
         error_msg = (
-            "❌ LỖI: Chưa có ảnh để rà quét!\n\n"
-            "HƯỚNG DẪN:\n"
-            "1. Sử dụng Camera CSI: Nhấn '🎥 Chụp từ Camera CSI'\n"
-            "2. Upload ảnh: Chọn tab '📤 Upload từ máy tính' và tải ảnh lên\n"
-            "3. Sau đó nhấn '▶️ BẮT ĐẦU RÀ QUÉT'"
+            "❌ ERROR: No image to scan!\n\n"
+            "INSTRUCTIONS:\n"
+            "1. Use CSI Camera: Click '🎥 Capture from CSI Camera'\n"
+            "2. Upload image: Choose '📤 Upload from Computer' tab and upload an image\n"
+            "3. Then click '▶️ START SCANNING'"
         )
         return None, error_msg, []
 
@@ -356,7 +356,7 @@ def start_inference(
 def save_uploaded_file(uploaded_file, output_dir):
     """Lưu file upload từ client vào output_dir (luôn copy để tránh temp-path expired)."""
     if uploaded_file is None:
-        return None, "Chưa có file nào được chọn"
+        return None, "No file selected"
 
     try:
         import shutil
@@ -380,9 +380,9 @@ def save_uploaded_file(uploaded_file, output_dir):
                 # fallback: dùng path gốc nếu không copy được
                 dest = src
 
-        return dest, f"✓ File đã tải: {os.path.basename(dest)}"
+        return dest, f"✓ File loaded: {os.path.basename(dest)}"
     except Exception as e:
-        return None, f"Lỗi tải file: {e}"
+        return None, f"Error loading file: {e}"
 
 
 
@@ -407,16 +407,16 @@ def _build_flow_html(active_step: int) -> str:
       3 = Model Inference    (bottom-right)
       4 = Output Handling    (bottom-left)
     """
-    plc_info  = "PLC: Mat ket noi" if not SHARED_STATE["plc_connected"] else "PLC: Da ket noi"
+    plc_info  = "PLC: Disconnected" if not SHARED_STATE["plc_connected"] else "PLC: Connected"
     plc_icon  = "\U0001f534" if not SHARED_STATE["plc_connected"] else "\U0001f7e2"
     plc_color = "#dc2626"    if not SHARED_STATE["plc_connected"] else "#16a34a"
 
     status_map = {
-        0: "\u23f8\ufe0f Cho lenh kich hoat...",
-        1: "\U0001f4f7 Dang thu du lieu tu Camera...",
-        2: "\U0001f527 Tien xu ly anh...",
-        3: "\U0001f9e0 Model AI dang suy luan...",
-        4: "\u2705 Xu ly hoan tat \u2014 Hien thi & Luu tru",
+        0: "\u23f8\ufe0f Waiting for activation command...",
+        1: "\U0001f4f7 Acquiring data from Camera...",
+        2: "\U0001f527 Pre-processing image...",
+        3: "\U0001f9e0 AI Model inferring...",
+        4: "\u2705 Processing completed \u2014 Display & Storage",
     }
     status_label = status_map.get(active_step, "")
 
@@ -555,7 +555,7 @@ def _build_flow_html(active_step: int) -> str:
         '<div style="display:flex;align-items:flex-start;justify-content:space-between;'
         'gap:6px;flex-wrap:wrap;min-width:0;margin-bottom:4px;">'
         '<span style="color:#1e293b;font-size:0.88rem;font-weight:700;min-width:0;">'
-        "\U0001f916 Quy trinh xu ly AI</span>"
+        "\U0001f916 AI Processing Flow</span>"
         f'<span style="color:{plc_color};font-size:0.7rem;font-weight:600;'
         f'white-space:nowrap;flex-shrink:0;">{plc_icon} {plc_info}</span>'
         "</div>"
@@ -598,13 +598,13 @@ def _build_flow_html(active_step: int) -> str:
         'border-top:1px solid #f1f5f9;flex-wrap:wrap;">'
         '<span style="display:flex;align-items:center;gap:4px;font-size:0.67rem;color:#64748b;">'
         '<span style="width:10px;height:10px;border-radius:3px;flex-shrink:0;display:inline-block;'
-        'background:#f8fafc;border:1.5px solid #cbd5e1;"></span>Cho</span>'
+        'background:#f8fafc;border:1.5px solid #cbd5e1;"></span>Idle</span>'
         '<span style="display:flex;align-items:center;gap:4px;font-size:0.67rem;color:#64748b;">'
         '<span style="width:10px;height:10px;border-radius:3px;flex-shrink:0;display:inline-block;'
-        'background:#dbeafe;border:1.5px solid #3b82f6;"></span>Dang xu ly</span>'
+        'background:#dbeafe;border:1.5px solid #3b82f6;"></span>Processing</span>'
         '<span style="display:flex;align-items:center;gap:4px;font-size:0.67rem;color:#64748b;">'
         '<span style="width:10px;height:10px;border-radius:3px;flex-shrink:0;display:inline-block;'
-        'background:#dcfce7;border:1.5px solid #22c55e;"></span>Hoan thanh</span>'
+        'background:#dcfce7;border:1.5px solid #22c55e;"></span>Completed</span>'
         '</div>'
 
         '</div>'   # end card
@@ -614,88 +614,88 @@ def _build_flow_html(active_step: int) -> str:
 
 def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, app=None):
     with gr.Row():
-        # CỘT 1: THÔNG SỐ RÀ QUÉT
+        # COLUMN 1: SCAN CONFIGURATION
         with gr.Column(scale=1):
             # ── AI FLOW (replaces PLC status panel) ──────────────
             ui_ai_flow = gr.HTML(
                 value=_build_flow_html(0),
-                label="Quy trình xử lý AI"
+                label="AI Processing Flow"
             )
 
-            gr.Markdown("### 📸 Chọn ảnh để quét")
+            gr.Markdown("### 📸 Select Image to Scan")
             
             # Hiển thị cảnh báo nếu camera không khả dụng
             if not camera_available:
-                gr.Markdown("⚠️ **Camera CSI không khả dụng** - Sử dụng Upload ảnh")
+                gr.Markdown("⚠️ **CSI Camera is not available** - Use Upload mode")
             
             # Tab cho 2 phương thức input
             with gr.Tabs():
-                with gr.TabItem("🎥 Camera CSI Jetson"):
-                    gr.Markdown("Chụp trực tiếp từ camera CSI trên Jetson Nano")
-                    ui_csi_image = gr.Image(label="Ảnh vừa chụp từ Camera", type="filepath", interactive=False)
+                with gr.TabItem("🎥 Jetson CSI Camera"):
+                    gr.Markdown("Capture directly from the CSI camera on Jetson Nano")
+                    ui_csi_image = gr.Image(label="Recently Captured Image", type="filepath", interactive=False)
                     csi_capture_btn = gr.Button(
-                        "🎥 Chụp từ Camera CSI" if camera_available else "❌ Camera không khả dụng",
+                        "🎥 Capture from CSI Camera" if camera_available else "❌ Camera not available",
                         variant="secondary", 
                         size="lg",
                         interactive=camera_available
                     )
                     ui_csi_status = gr.Textbox(
-                        label="Trạng thái",
+                        label="Status",
                         interactive=False,
-                        value="Camera không khả dụng" if not camera_available else "Sẵn sàng"
+                        value="Camera not available" if not camera_available else "Ready"
                     )
                 
-                with gr.TabItem("📤 Upload từ máy tính"):
-                    gr.Markdown("Tải ảnh lên từ máy tính của bạn")
-                    ui_upload_image = gr.Image(type="filepath", sources=["upload"], label="Chọn ảnh PCB", scale=1)
-                    ui_upload_status = gr.Textbox(label="Trạng thái upload", interactive=False, value="Chờ upload...")
+                with gr.TabItem("📤 Upload from Computer"):
+                    gr.Markdown("Upload an image from your computer")
+                    ui_upload_image = gr.Image(type="filepath", sources=["upload"], label="Select PCB Image", scale=1)
+                    ui_upload_status = gr.Textbox(label="Upload status", interactive=False, value="Waiting for upload...")
                     ui_uploaded_image = gr.State(None)
             
-            gr.Markdown("### ⚙️ Cấu hình rà quét")
-            ui_conf_thres = gr.Slider(minimum=0.1, maximum=1.0, value=0.25, step=0.05, label="Ngưỡng tự tin (Confidence Threshold)")
+            gr.Markdown("### ⚙️ Scan Configuration")
+            ui_conf_thres = gr.Slider(minimum=0.1, maximum=1.0, value=0.25, step=0.05, label="Confidence Threshold")
             
             with gr.Row():
-                ui_line_width = gr.Slider(minimum=1, maximum=10, value=2, step=1, label="Độ dày Bounding Box")
-                ui_font_size = gr.Slider(minimum=1, maximum=10, value=1, step=1, label="Cỡ chữ (Font Size)")
+                ui_line_width = gr.Slider(minimum=1, maximum=10, value=2, step=1, label="Bounding Box Thickness")
+                ui_font_size = gr.Slider(minimum=1, maximum=10, value=1, step=1, label="Font Size")
             
-            run_btn = gr.Button("▶️ BẮT ĐẦU RÀ QUÉT", variant="primary", size="lg")
-            ui_log_output = gr.Textbox(label="📋 Báo cáo", lines=8, interactive=False)
+            run_btn = gr.Button("▶️ START SCANNING", variant="primary", size="lg")
+            ui_log_output = gr.Textbox(label="📋 Report", lines=8, interactive=False)
 
-        # CỘT 2: HIỂN THỊ KẾT QUẢ TRỰC QUAN
+        # COLUMN 2: VISUAL RESULT
         with gr.Column(scale=2):
-            gr.Markdown("### 📊 Màn hình QA/QC Trực quan")
-            ui_result_img = gr.Image(label="Ảnh kết quả (Đã đánh dấu lỗi)", type="filepath")
+            gr.Markdown("### 📊 Visual QA/QC Monitor")
+            ui_result_img = gr.Image(label="Result Image (Defects Marked)", type="filepath")
             
-            gr.Markdown("### 🗄️ Dữ liệu Log (10 mẫu mới nhất)")
+            gr.Markdown("### 🗄️ Log Data (10 Latest Samples)")
             ui_log_table = gr.Dataframe(interactive=False, wrap=True)
             
     gr.Markdown("---")
-    gr.Markdown("### 🔌 Trạng thái các Bit PLC")
+    gr.Markdown("### 🔌 PLC Bit Status")
     with gr.Row():
-        ui_plc_status = gr.Textbox(label=f"Kết nối ({PLC_STATE['ip']})", value="🔴 Mất kết nối", interactive=False, scale=2)
+        ui_plc_status = gr.Textbox(label=f"Connection ({PLC_STATE['ip']})", value="🔴 Disconnected", interactive=False, scale=2)
         ui_m1020 = gr.Textbox(label="M1020 (Trigger)", value="⚫ 0", interactive=False, scale=1)
         ui_m169 = gr.Textbox(label="M169 (Busy)", value="⚫ 0", interactive=False, scale=1)
         ui_m170 = gr.Textbox(label="M170 (OK)", value="⚫ 0", interactive=False, scale=1)
         ui_m171 = gr.Textbox(label="M171 (NG)", value="⚫ 0", interactive=False, scale=1)
 
-    # Sự kiện: Chụp từ Camera CSI
+    # Event: Capture from CSI Camera
     csi_capture_btn.click(
         fn=capture_from_csi,
         inputs=[sys_output_dir],
         outputs=[ui_csi_image, ui_csi_status],
     ).then(
-        fn=lambda: gr.update(value="✓ Chụp thành công! Nhấn 'BẮT ĐẦU RÀ QUÉT' để phân tích."),
+        fn=lambda: gr.update(value="✓ Capture successful! Click 'START SCANNING' to analyze."),
         outputs=[ui_csi_status]
     )
     
-    # Sự kiện: Upload file
+    # Event: Upload file
     ui_upload_image.change(
         fn=save_uploaded_file,
         inputs=[ui_upload_image, sys_output_dir],
         outputs=[ui_uploaded_image, ui_upload_status]
     )
 
-    # Chạy inference với ảnh được chọn (CSI hoặc Upload) — cũng cập nhật AI flow
+    # Run inference with selected image (CSI or Upload) — also updates AI flow
 
     def run_with_selected_image(sys_device, sys_model_path, sys_output_dir,
                                 csi_image_path, uploaded_image_path,
@@ -707,7 +707,7 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
         # ── STEP 1: Data Acquisition ────────────────────────────────────────
         # Light up block INSTANTLY the moment acquisition begins
         SHARED_STATE["ai_flow_step"] = 1
-        yield _build_flow_html(1), gr.update(), "📷 Đang thu dữ liệu từ Camera...", gr.update()
+        yield _build_flow_html(1), gr.update(), "📷 Acquiring data from Camera...", gr.update()
 
         # Actual work: validate & select image source
         csi_ok    = bool(csi_image_path    and os.path.exists(str(csi_image_path)))
@@ -731,7 +731,7 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
 
         # ── STEP 2: Pre-processing ──────────────────────────────────────────
         SHARED_STATE["ai_flow_step"] = 2
-        yield _build_flow_html(2), gr.update(), "🔧 Tiền xử lý ảnh (resize · normalize)...", gr.update()
+        yield _build_flow_html(2), gr.update(), "🔧 Pre-processing image (resize · normalize)...", gr.update()
 
         # ── STEP 3: Model Inference ─────────────────────────────────────────
         # Light block BEFORE calling inference so user sees step 3 during the wait
@@ -779,7 +779,7 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
             step = SHARED_STATE["ai_flow_step"]
             flow_html = _build_flow_html(step)
             
-            plc_str = "🟢 Đã kết nối" if SHARED_STATE["plc_connected"] else "🔴 Mất kết nối"
+            plc_str = "🟢 Connected" if SHARED_STATE["plc_connected"] else "🔴 Disconnected"
             m1020_str = "🟢 1" if SHARED_STATE["plc_vars"]["M1020"] else "⚫ 0"
             m169_str = "🟢 1" if SHARED_STATE["plc_vars"]["M169"] else "⚫ 0"
             m170_str = "🟢 1" if SHARED_STATE["plc_vars"]["M170"] else "⚫ 0"
@@ -802,7 +802,7 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
             if SHARED_STATE["has_new_capture"]:
                 SHARED_STATE["has_new_capture"] = False
                 updates[1] = gr.update(value=SHARED_STATE["capture_path"])
-                updates[2] = gr.update(value="✓ Đã chụp từ PLC")
+                updates[2] = gr.update(value="✓ Captured from PLC")
             if SHARED_STATE["has_new_scan"]:
                 SHARED_STATE["has_new_scan"] = False
                 updates[3] = gr.update(value=SHARED_STATE["scan_img"])

@@ -4,9 +4,9 @@ from core.dataset_manager import resolve_project_path, PROJECT_ROOT, load_system
 def train_yolo_model(model_type, model_path, data_yaml_path, epochs, batch_size, imgsz, device):
     try:
         if not data_yaml_path or not os.path.exists(data_yaml_path):
-            return "LOI: Khong tim thay file data.yaml. Vui long kiem tra tab Train/Dataset."
+            return "ERROR: data.yaml file not found. Please check Train/Dataset tab."
         if int(epochs) <= 0 or int(batch_size) <= 0 or int(imgsz) <= 0:
-            return "LOI: Tham so train khong hop le (epochs/batch/imgsz phai > 0)."
+            return "ERROR: Invalid training parameters (epochs/batch/imgsz must be > 0)."
         
         # Kiểm tra phần cứng chi tiết
         train_device = "cpu"
@@ -62,7 +62,7 @@ def train_yolo_model(model_type, model_path, data_yaml_path, epochs, batch_size,
         if model_path:
             model_name = resolve_project_path(model_path)
             if not os.path.exists(model_name):
-                return f"LOI: Khong tim thay model tai {model_path}"
+                return f"ERROR: Model not found at {model_path}"
         else:
             fallback = os.path.join(PROJECT_ROOT, "weights", f"{model_type}.pt")
             if os.path.exists(fallback):
@@ -93,7 +93,7 @@ def train_yolo_model(model_type, model_path, data_yaml_path, epochs, batch_size,
         
         best_model_path = os.path.join(str(results.save_dir), "weights", "best.pt")
         log_lines = [
-            "THANH CONG: Huan luyen hoan tat",
+            "SUCCESS: Training complete",
             f"Model source: {model_name}",
             f"Data yaml: {os.path.abspath(data_yaml_path)}",
             f"Device: {train_device}",
@@ -105,4 +105,4 @@ def train_yolo_model(model_type, model_path, data_yaml_path, epochs, batch_size,
         return "\n".join(log_lines)
 
     except Exception as e:
-        return f"LOI TRAIN:\n{str(e)}"
+        return f"TRAINING ERROR:\n{str(e)}"

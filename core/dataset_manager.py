@@ -206,7 +206,7 @@ def save_system_config(device, model_type, model_path, dataset_path, output_dir,
 def save_annotation(image, annotation_list, dataset_path, used_classes):
     """Lưu ảnh và nhãn YOLO, tự tăng số thứ tự nếu trùng tên để bảo vệ dữ liệu."""
     if not dataset_path or image is None:
-        return "LỖI: Chưa có dữ liệu ảnh.", used_classes
+        return "ERROR: No image data.", used_classes
     if annotation_list is None:
         annotation_list = []
     try:
@@ -260,23 +260,23 @@ def save_annotation(image, annotation_list, dataset_path, used_classes):
         with open(os.path.join(lbl_dir, f"{filename}.txt"), "w") as f:
             f.write("\n".join(yolo_lines))
             
-        return f"THÀNH CÔNG: Đã lưu {filename}.jpg", used_classes
+        return f"SUCCESS: Saved {filename}.jpg", used_classes
     except Exception as e: 
-        return f"LỖI: {str(e)}", used_classes
+        return f"ERROR: {str(e)}", used_classes
 
 def split_dataset(dataset_path, train_r, val_r, test_r, bg_ratio=10):
     """Phân chia dữ liệu train/val/test, có hỗ trợ lọc ảnh background theo tỉ lệ."""
-    if (train_r + val_r + test_r) != 100: return "LỖI: Tổng tỉ lệ phải bằng 100%."
+    if (train_r + val_r + test_r) != 100: return "ERROR: Total ratio must equal 100%."
     
     # Lấy raw_data_dir từ config
     cfg = load_system_config()
     raw_dir = cfg.get("raw_data_dir", "dataset/raw_data")
     raw_dir = resolve_project_path(raw_dir)
     
-    if not os.path.exists(raw_dir): return "LỖI: Không có raw_data."
+    if not os.path.exists(raw_dir): return "ERROR: No raw_data."
     try:
         images = [f for f in os.listdir(os.path.join(raw_dir, "images")) if f.endswith(('.jpg', '.png'))]
-        if not images: return "LỖI: Thư mục ảnh rỗng."
+        if not images: return "ERROR: Image directory is empty."
         
         obj_images = []
         bg_images = []
@@ -333,8 +333,8 @@ def split_dataset(dataset_path, train_r, val_r, test_r, bg_ratio=10):
         with open(os.path.join(dataset_path, "data.yaml"), "w", encoding="utf-8") as f:
             f.write(yaml_content)
 
-        return f"Đã chia {total} mẫu thành công (Gồm {len(obj_images)} ảnh chứa lỗi và {len(kept_bg)} ảnh background)."
-    except Exception as e: return f"LỖI CHIA DỮ LIỆU: {str(e)}"
+        return f"Successfully split {total} samples (including {len(obj_images)} defect images and {len(kept_bg)} background images)."
+    except Exception as e: return f"DATA SPLITTING ERROR: {str(e)}"
 
 def auto_slice_image(image_path, enable_sahi=False):
     """Cắt ảnh tự động theo cấu hình SAHI nếu được kích hoạt."""
@@ -376,7 +376,7 @@ def save_raw_image_to_log(image, status_folder="OK"):
     bỏ qua quy trình đánh nhãn và phân chia dataset.
     """
     if image is None:
-        return "LỖI: Chưa có dữ liệu ảnh."
+        return "ERROR: No image data."
 
     try:
         # Lấy log image directory từ config
@@ -401,9 +401,9 @@ def save_raw_image_to_log(image, status_folder="OK"):
         success = cv2.imwrite(filepath, bgr_image)
 
         if success:
-            return f"THÀNH CÔNG: Đã lưu ảnh vào {filepath}"
+            return f"SUCCESS: Saved image to {filepath}"
         else:
-            return f"LỖI: Không thể ghi file. Hãy kiểm tra lại quyền ghi (Write Permission) của thư mục."
-
+            return f"ERROR: Cannot write file. Please check write permissions for the directory."
+ 
     except Exception as e:
-        return f"LỖI LƯU ẢNH LOG: {str(e)}"
+        return f"ERROR SAVING LOG IMAGE: {str(e)}"

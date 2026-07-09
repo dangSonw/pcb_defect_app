@@ -11,13 +11,13 @@ try:
     camera = get_camera()
     if camera.start():
         camera_available = True
-        print("[Main] ✓ Camera CSI đã khởi động thành công")
+        print("[Main] ✓ CSI Camera started successfully")
     else:
-        print("[Main] ⚠ Cảnh báo: Camera CSI không khả dụng")
-        print("[Main] → Sử dụng chế độ Upload ảnh từ máy tính")
+        print("[Main] ⚠ Warning: CSI Camera is not available")
+        print("[Main] → Using Image Upload mode from computer")
 except Exception as e:
-    print(f"[Main] ⚠ Cảnh báo: Lỗi khởi động camera: {e}")
-    print("[Main] → Sử dụng chế độ Upload ảnh từ máy tính")
+    print(f"[Main] ⚠ Warning: Camera startup error: {e}")
+    print("[Main] → Using Image Upload mode from computer")
 
 siemens_theme = gr.themes.Soft(
         primary_hue="slate",
@@ -34,18 +34,18 @@ with gr.Blocks(title="PCB Defect QA/QC") as app:
     sys_output_dir = gr.State(cfg["output_dir"])
     
     with gr.Tabs():
-        with gr.TabItem("1. Cài đặt Hệ thống"):
+        with gr.TabItem("1. System Settings"):
             tab_config.render(sys_device, sys_model_type, sys_model_path, sys_dataset_path, sys_output_dir, cfg)
-        with gr.TabItem("2. Huấn luyện (Train)"):
+        with gr.TabItem("2. Training"):
             tab_train.render(sys_device, sys_model_type, sys_model_path, sys_dataset_path)
-        with gr.TabItem("3. Quản lý Dataset"): 
+        with gr.TabItem("3. Dataset Management"): 
             # Tab 3 cập nhật thêm tham số camera_available
             tab_dataset.render(sys_dataset_path, sys_device, camera_available)
-        with gr.TabItem("4. Xuất Model (Export)"):
+        with gr.TabItem("4. Model Export"):
             tab_export.render(sys_device, sys_model_path)
-        with gr.TabItem("5. Rà quét PCB (Inference)"):
+        with gr.TabItem("5. PCB Detection"):
             tab_run.render(sys_device, sys_model_path, sys_output_dir, camera_available, app)
-        with gr.TabItem("6. Pipeline AI (Full Flow)"):
+        with gr.TabItem("6. AI Pipeline"):
             tab_pipeline.render()
 
 if __name__ == "__main__":
@@ -59,6 +59,6 @@ if __name__ == "__main__":
         try:
             camera = get_camera()
             camera.stop()
-            print("[Main] ✓ Camera CSI đã tắt")
+            print("[Main] ✓ CSI Camera stopped")
         except Exception as e:
-            print(f"[Main] ⚠ Lỗi tắt camera: {e}")
+            print(f"[Main] ⚠ Error stopping camera: {e}")

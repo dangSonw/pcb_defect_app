@@ -46,23 +46,23 @@ def auto_detect_hardware():
             return "CPU"
             
     except ImportError:
-        return "CPU (Chưa cài PyTorch)"
+        return "CPU (PyTorch not installed)"
 
 def open_file_dialog():
-    """Mở cửa sổ chọn file cục bộ"""
+    """Open local file selection window"""
     root = tk.Tk()
     root.attributes("-topmost", True)
     root.withdraw()
-    file_path = filedialog.askopenfilename(title="Chọn file Model", filetypes=[("Model files", "*.pt *.engine *.onnx"), ("All files", "*.*")])
+    file_path = filedialog.askopenfilename(title="Select Model File", filetypes=[("Model files", "*.pt *.engine *.onnx"), ("All files", "*.*")])
     root.destroy()
     return file_path if file_path else ""
 
 def open_folder_dialog():
-    """Mở cửa sổ chọn thư mục cục bộ"""
+    """Open local directory selection window"""
     root = tk.Tk()
     root.attributes("-topmost", True)
     root.withdraw()
-    folder_path = filedialog.askdirectory(title="Chọn Thư mục")
+    folder_path = filedialog.askdirectory(title="Select Directory")
     root.destroy()
     return folder_path if folder_path else ""
 
@@ -120,7 +120,7 @@ def get_hardware_info():
 def save_settings(device, model_type, model_path, dataset_path, output_dir, defect_classes, cam_width, cam_height, cam_quality):
     try:
         payload = save_system_config(device, model_type, model_path, dataset_path, output_dir, defect_classes=defect_classes, cam_width=cam_width, cam_height=cam_height, cam_quality=cam_quality)
-        msg = f"Da luu cau hinh: {payload['device']} | {payload['model_type']}"
+        msg = f"Saved configuration: {payload['device']} | {payload['model_type']}"
         return (
             payload["device"],
             payload["model_type"],
@@ -134,7 +134,7 @@ def save_settings(device, model_type, model_path, dataset_path, output_dir, defe
             msg,
         )
     except Exception as e:
-        msg = f"Loi luu cau hinh: {e}"
+        msg = f"Error saving configuration: {e}"
         return device, model_type, model_path, dataset_path, output_dir, defect_classes, cam_width, cam_height, cam_quality, msg
 
 # --- HÀM VẼ GIAO DIỆN ---
@@ -161,62 +161,62 @@ def render(sys_device, sys_model_type, sys_model_path, sys_dataset_path, sys_out
     with gr.Row():
         # CỘT 1: THIẾT LẬP HỆ THỐNG
         with gr.Column(scale=1):
-            gr.Markdown("### Cấu hình AI & Phần cứng")
+            gr.Markdown("### AI & Hardware Configuration")
             
-            gr.Markdown(f"**Phát hiện phần cứng:** {detected_hw}")
+            gr.Markdown(f"**Detected hardware:** {detected_hw}")
             
             ui_device = gr.Dropdown(
                 choices=device_choices, 
                 value=cfg.get("device", detected_hw), 
-                label="Lựa chọn phần cứng", 
+                label="Hardware Selection", 
                 allow_custom_value=True
             )
             
             ui_model_type = gr.Dropdown(
                 choices=model_choices, 
                 value=cfg.get("model_type", "yolov11s-obb"),
-                label="Loại mô hình mặc định"
+                label="Default Model Type"
             )
 
         # CỘT 2: ĐƯỜNG DẪN DỮ LIỆU
         with gr.Column(scale=2):
-            gr.Markdown("### Cấu hình Đường dẫn (I/O)")
+            gr.Markdown("### Path Configuration (I/O)")
             
             with gr.Row():
-                ui_model_path = gr.Textbox(scale=5, label="Đường dẫn Model (.pt, .engine)", value=cfg.get("model_path", ""))
-                btn_browse_model = gr.Button("Duyệt File", scale=1)
+                ui_model_path = gr.Textbox(scale=5, label="Model Path (.pt, .engine)", value=cfg.get("model_path", ""))
+                btn_browse_model = gr.Button("Browse File", scale=1)
                 
             with gr.Row():
-                ui_dataset_path = gr.Textbox(scale=5, label="Đường dẫn Dataset (Thư mục)", value=cfg.get("dataset_path", "./dataset"))
-                btn_browse_data = gr.Button("Duyệt Thư mục", scale=1)
+                ui_dataset_path = gr.Textbox(scale=5, label="Dataset Path (Directory)", value=cfg.get("dataset_path", "./dataset"))
+                btn_browse_data = gr.Button("Browse Directory", scale=1)
                 
             with gr.Row():
-                ui_output_dir = gr.Textbox(scale=5, value=cfg.get("output_dir", "outputs"), label="Thư mục lưu báo cáo")
-                btn_browse_out = gr.Button("Duyệt Thư mục", scale=1)
+                ui_output_dir = gr.Textbox(scale=5, value=cfg.get("output_dir", "outputs"), label="Report Storage Directory")
+                btn_browse_out = gr.Button("Browse Directory", scale=1)
 
     gr.Markdown("---")
 
     with gr.Row():
         with gr.Column(scale=2):
-            gr.Markdown("### Cấu hình Báo cáo Lỗi đầu ra")
-            ui_defect_classes = gr.Textbox(value=cfg.get("defect_classes", "Empty, Excess Solder, Exposed Copper, Misaligned Header, Missing Component, Scratched, Solder Bridge"), label="Danh sách Class Lỗi (cách nhau bằng dấu phẩy)")
+            gr.Markdown("### Output Defect Report Configuration")
+            ui_defect_classes = gr.Textbox(value=cfg.get("defect_classes", "Empty, Excess Solder, Exposed Copper, Misaligned Header, Missing Component, Scratched, Solder Bridge"), label="List of Defect Classes (comma-separated)")
 
     gr.Markdown("---")
     
     with gr.Row():
         with gr.Column(scale=1):
-            gr.Markdown("### Cấu hình Camera CSI (Kích thước & Dung lượng)")
+            gr.Markdown("### CSI Camera Configuration (Resolution & Quality)")
             with gr.Row():
-                ui_cam_width = gr.Number(value=cfg.get("cam_width", 3280), label="Chiều rộng (Width px)", precision=0)
-                ui_cam_height = gr.Number(value=cfg.get("cam_height", 2464), label="Chiều cao (Height px)", precision=0)
-            ui_cam_quality = gr.Slider(minimum=10, maximum=100, value=cfg.get("cam_quality", 95), step=5, label="Chất lượng JPEG (Quality %)")
+                ui_cam_width = gr.Number(value=cfg.get("cam_width", 3280), label="Width (px)", precision=0)
+                ui_cam_height = gr.Number(value=cfg.get("cam_height", 2464), label="Height (px)", precision=0)
+            ui_cam_quality = gr.Slider(minimum=10, maximum=100, value=cfg.get("cam_quality", 95), step=5, label="JPEG Quality (%)")
 
     gr.Markdown("---")
     
     with gr.Row():
-        check_hw_btn = gr.Button("🔍 Kiểm tra Hardware", variant="secondary", scale=1)
-        save_btn = gr.Button("Lưu Cài Đặt Hệ Thống", variant="primary", scale=1)
-        status_msg = gr.Textbox(label="Terminal Trạng thái", interactive=False, scale=2)
+        check_hw_btn = gr.Button("🔍 Check Hardware", variant="secondary", scale=1)
+        save_btn = gr.Button("Save System Settings", variant="primary", scale=1)
+        status_msg = gr.Textbox(label="Status Terminal", interactive=False, scale=2)
 
     # --- KẾT NỐI SỰ KIỆN ---
     check_hw_btn.click(fn=get_hardware_info, inputs=[], outputs=[status_msg])

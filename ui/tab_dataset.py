@@ -1,4 +1,4 @@
-﻿import gradio as gr
+import gradio as gr
 import json
 import time
 import os
@@ -123,43 +123,43 @@ def render(sys_dataset_path, sys_device, camera_available=False):
 
     with gr.Row():
         with gr.Column(scale=1):
-            gr.Markdown("### Thống kê Nhãn")
-            ui_anno_display = gr.HTML("<i>Chưa có box nào</i>")
+            gr.Markdown("### Label Statistics")
+            ui_anno_display = gr.HTML("<i>No boxes drawn yet</i>")
             gr.Markdown("---")
             ui_train = gr.Slider(0, 100, 70, label="Train %")
             ui_val = gr.Slider(0, 100, 20, label="Val %")
             ui_test = gr.Slider(0, 100, 10, label="Test %")
-            ui_bg_ratio = gr.Slider(0, 100, 10, label="Giữ lại ảnh Trống/Background (%)")
-            btn_split = gr.Button("THỰC THI CHIA", variant="secondary")
+            ui_bg_ratio = gr.Slider(0, 100, 10, label="Keep Empty/Background Images (%)")
+            btn_split = gr.Button("EXECUTE SPLIT", variant="secondary")
 
         with gr.Column(scale=4):
-            ui_gallery = gr.Gallery(label="Bộ nhớ tạm", elem_id="horizontal-gallery", columns=10, rows=1, height=220)
+            ui_gallery = gr.Gallery(label="Temporary Storage", elem_id="horizontal-gallery", columns=10, rows=1, height=220)
             with gr.Row():
                 with gr.Column():
-                    ui_file_input = gr.File(label="Tải ảnh", file_count="multiple", file_types=["image"], height=150)
+                    ui_file_input = gr.File(label="Upload Images", file_count="multiple", file_types=["image"], height=150)
                 with gr.Column():
-                    ui_cam_input = gr.Image(label="Chụp Webcam", sources=["webcam"], type="numpy", height=100)
-                    btn_csi_capture = gr.Button("🎥 Chụp Camera CSI (Đưa vào bộ nhớ tạm)", variant="primary", interactive=camera_available)
+                    ui_cam_input = gr.Image(label="Capture from Webcam", sources=["webcam"], type="numpy", height=100)
+                    btn_csi_capture = gr.Button("🎥 Capture CSI Camera (Add to Temporary Storage)", variant="primary", interactive=camera_available)
                     
                     gr.Markdown("---")
-                    gr.Markdown("### ⚡ Lưu Log Nhanh (Không cần gán nhãn)")
-                    ui_log_status = gr.Radio(["OK", "NG"], label="Trạng thái PCB", value="OK")
+                    gr.Markdown("### ⚡ Quick Log Saving (No Labeling Needed)")
+                    ui_log_status = gr.Radio(["OK", "NG"], label="PCB Status", value="OK")
                     with gr.Row():
-                        btn_log_csi_direct = gr.Button("📸 Chụp CSI & Lưu Log Ngay", variant="primary", interactive=camera_available)
-                        btn_log_workspace = gr.Button("💾 Lưu Log ảnh đang xem", variant="secondary")
+                        btn_log_csi_direct = gr.Button("📸 Capture CSI & Save Log Instantly", variant="primary", interactive=camera_available)
+                        btn_log_workspace = gr.Button("💾 Save Current Workspace Image to Log", variant="secondary")
 
             gr.Markdown("---")
             with gr.Row():
                 ui_work_img = gr.Image(label="Workspace", elem_id="workspace-img", interactive=False, type="numpy")
                 with gr.Column(visible=False) as ui_label_column:
                     ui_current_box_data = gr.Textbox(value="", elem_id="box-transfer", interactive=True)
-                    ui_class_input = gr.Textbox(label="Nhập Class (Nhấn Enter)", placeholder="Ví dụ: short_circuit")
-                    btn_confirm_box = gr.Button("XÁC NHẬN BOX", variant="primary")
-                    btn_undo_box = gr.Button("⏪ Hủy Box Vừa Vẽ", variant="secondary")
+                    ui_class_input = gr.Textbox(label="Enter Class (Press Enter)", placeholder="Example: short_circuit")
+                    btn_confirm_box = gr.Button("CONFIRM BOX", variant="primary")
+                    btn_undo_box = gr.Button("⏪ Undo Last Drawn Box", variant="secondary")
 
             with gr.Row():
-                btn_save_final = gr.Button("LƯU TOÀN BỘ GÁN NHÃN", variant="primary")
-                ui_status = gr.Textbox(label="Trạng thái", interactive=False, value="Sẵn sàng")
+                btn_save_final = gr.Button("SAVE ALL LABELS", variant="primary")
+                ui_status = gr.Textbox(label="Status", interactive=False, value="Ready")
 
     def update_gallery_view(buffer, ann_list):
         return [(p, "✅") if p in ann_list else p for p in buffer]
@@ -209,7 +209,7 @@ def render(sys_dataset_path, sys_device, camera_available=False):
 
     def on_gallery_select(evt: gr.SelectData, buffer):
         img_path = buffer[evt.index] if evt.index < len(buffer) else ""
-        return img_path, img_path, gr.update(visible=True), [], {}, "<i>Sẵn sàng gán nhãn</i>"
+        return img_path, img_path, gr.update(visible=True), [], {}, "<i>Ready to label</i>"
 
     JS_CLEAR_BOXES = "function(){ window.pcb_boxes = []; const canvas = document.querySelector('#label-canvas'); if(canvas){ canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height); } }"
     ui_gallery.select(on_gallery_select, [image_buffer], [current_image_path, ui_work_img, ui_label_column, current_anno_list, class_counts, ui_anno_display]).then(None, None, None, js=JS_CLEAR_BOXES)
@@ -217,19 +217,19 @@ def render(sys_dataset_path, sys_device, camera_available=False):
 
     def confirm_one_box(box_json, label_name, anno_list, counts):
         if not box_json or not label_name.strip():
-            return label_name, anno_list, counts, "<i>Cần vẽ box và nhập nhãn</i>"
+            return label_name, anno_list, counts, "<i>Must draw a box and enter label</i>"
         
         try:
             box = json.loads(box_json)
         except Exception:
-            return label_name, anno_list, counts, "<i>Loi doc toa do box</i>"
+            return label_name, anno_list, counts, "<i>Error reading box coordinates</i>"
         if not isinstance(box, list) or len(box) != 4:
-            return label_name, anno_list, counts, "<i>Box khong hop le</i>"
+            return label_name, anno_list, counts, "<i>Invalid box</i>"
         x1, y1, x2, y2 = [float(v) for v in box]
         x1, x2 = sorted((x1, x2))
         y1, y2 = sorted((y1, y2))
         if abs(x2 - x1) < 1 or abs(y2 - y1) < 1:
-            return label_name, anno_list, counts, "<i>Box qua nho, vui long ve lai</i>"
+            return label_name, anno_list, counts, "<i>Box too small, please redraw</i>"
 
         new_anno_list = list(anno_list)
         clean_label = label_name.strip()
@@ -247,14 +247,14 @@ def render(sys_dataset_path, sys_device, camera_available=False):
 
     def undo_last_box(anno_list, counts):
         if not anno_list:
-            return anno_list, counts, "<i>Chưa có box nào</i>"
+            return anno_list, counts, "<i>No boxes drawn yet</i>"
         last_ann = anno_list.pop()
         label = last_ann['label']
         if label in counts:
             counts[label] -= 1
             if counts[label] <= 0:
                 del counts[label]
-        html = "<ul>" + "".join([f"<li><b>{k}</b>: {v}</li>" for k, v in counts.items()]) + "</ul>" if counts else "<i>Chưa có box nào</i>"
+        html = "<ul>" + "".join([f"<li><b>{k}</b>: {v}</li>" for k, v in counts.items()]) + "</ul>" if counts else "<i>No boxes drawn yet</i>"
         return anno_list, counts, html
 
     JS_UNDO = "function(){ if(window.pcb_boxes && window.pcb_boxes.length > 0) { window.pcb_boxes.pop(); } const canvas = document.querySelector('#label-canvas'); if(canvas) { const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height); window.pcb_boxes.forEach(b => { ctx.strokeStyle='#00ff00'; ctx.lineWidth=2; ctx.strokeRect(b[0]*canvas.width, b[1]*canvas.height, (b[2]-b[0])*canvas.width, (b[3]-b[1])*canvas.height); }); } }"
@@ -276,7 +276,7 @@ def render(sys_dataset_path, sys_device, camera_available=False):
     btn_split.click(fn=split_dataset, inputs=[sys_dataset_path, ui_train, ui_val, ui_test, ui_bg_ratio], outputs=[ui_status])
     def handle_log_workspace(image, status):
         if image is None:
-            return "LỖI: Chưa có ảnh trên màn hình Workspace."
+            return "ERROR: No image on Workspace screen."
         return save_raw_image_to_log(image, status_folder=status)
 
     btn_log_workspace.click(
@@ -301,8 +301,8 @@ def render(sys_dataset_path, sys_device, camera_available=False):
                 # Chuyển đổi BGR (OpenCV) sang RGB (chuẩn chung của app) để hàm log tự xử lý
                 img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 return save_raw_image_to_log(img_rgb, status_folder=status)
-            return "LỖI: Không thể đọc ảnh vừa chụp."
-        return f"LỖI Camera: {msg}"
+            return "ERROR: Cannot read captured image."
+        return f"Camera ERROR: {msg}"
 
     btn_log_csi_direct.click(
         fn=handle_log_csi_direct,

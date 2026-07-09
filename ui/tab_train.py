@@ -30,16 +30,16 @@ def render(sys_device, sys_model_type, sys_model_path, sys_dataset_path):
     
     with gr.Row():
         with gr.Column(scale=1):
-            gr.Markdown("### Thông số Huấn luyện")
-            ui_epochs = gr.Slider(minimum=1, maximum=1000, value=100, step=1, label="Số vòng lặp (Epochs)")
-            ui_batch_size = gr.Slider(minimum=1, maximum=128, value=16, step=1, label="Kích thước lô (Batch Size)")
-            ui_imgsz = gr.Slider(minimum=320, maximum=1280, value=640, step=32, label="Kích thước ảnh đầu vào (Image Size)")
-            train_btn = gr.Button("BẮT ĐẦU HUẤN LUYỆN", variant="primary")
+            gr.Markdown("### Training Parameters")
+            ui_epochs = gr.Slider(minimum=1, maximum=1000, value=100, step=1, label="Epochs")
+            ui_batch_size = gr.Slider(minimum=1, maximum=128, value=16, step=1, label="Batch Size")
+            ui_imgsz = gr.Slider(minimum=320, maximum=1280, value=640, step=32, label="Input Image Size")
+            train_btn = gr.Button("START TRAINING", variant="primary")
             
         with gr.Column(scale=2):
-            gr.Markdown("### Giám sát Hệ thống")
-            ui_data_yaml = gr.Textbox(label="Duong dan data.yaml", value=default_data_yaml)
-            ui_log_output = gr.Textbox(label="Nhật ký", lines=12, interactive=False, placeholder="Tiến trình huấn luyện sẽ hiển thị ở đây...")
+            gr.Markdown("### System Monitor")
+            ui_data_yaml = gr.Textbox(label="Path to data.yaml", value=default_data_yaml)
+            ui_log_output = gr.Textbox(label="Log", lines=12, interactive=False, placeholder="Training progress will be displayed here...")
 
     train_btn.click(
         fn=start_training,

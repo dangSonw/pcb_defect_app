@@ -20,7 +20,7 @@ def _get_model(model_path):
     if _cached_model_path == model_path and _cached_model is not None:
         return _cached_model
         
-    print(f"[AI] Đang nạp model vào RAM/VRAM: {model_path} ...")
+    print(f"[AI] Loading model into RAM/VRAM: {model_path} ...")
     _cached_model = YOLO(model_path)
     _cached_model_path = model_path
     
@@ -28,7 +28,7 @@ def _get_model(model_path):
     try:
         dummy_img = np.zeros((640, 640, 3), dtype=np.uint8)
         _cached_model.predict(dummy_img, verbose=False)
-        print("[AI] Khởi động nóng (Warmup) thành công.")
+        print("[AI] Warmup successful.")
     except Exception:
         pass
         
@@ -134,14 +134,14 @@ def run_pcb_scan(model_path, image_path, output_dir, conf_thres=0.25, line_width
 
     model_path = resolve_project_path(model_path)
     if not model_path or not os.path.exists(model_path):
-        return None, "LOI: Khong tim thay model.", None, None
+        return None, "ERROR: Model file not found.", None, None
     if not image_path or not os.path.exists(image_path):
-        return None, "LOI: Khong tim thay anh dau vao.", None, None
+        return None, "ERROR: Input image not found.", None, None
 
     os.makedirs(output_dir, exist_ok=True)
     image = cv2.imread(image_path)
     if image is None:
-        return None, "LOI: Khong doc duoc anh.", None, None
+        return None, "ERROR: Cannot read image.", None, None
 
     # Lấy cấu hình hệ thống, bao gồm cả style cho các lỗi
     cfg = load_system_config()
@@ -276,10 +276,10 @@ def run_pcb_scan(model_path, image_path, output_dir, conf_thres=0.25, line_width
         writer.writerow(row)
 
     summary = (
-        f"THANH CONG: Da quet anh\n"
-        f"So loi detect: {len(detections)}\n"
-        f"So anomaly candidate: {len(anomalies)}\n"
-        f"Anh ket qua: {out_img_path}\n"
-        f"Bao cao CSV: {csv_path}\n"
+        f"SUCCESS: Image scanned\n"
+        f"Detected defects: {len(detections)}\n"
+        f"Anomaly candidates: {len(anomalies)}\n"
+        f"Result image: {out_img_path}\n"
+        f"CSV report: {csv_path}\n"
     )
     return out_img_path, summary, csv_path, ""

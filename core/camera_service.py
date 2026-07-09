@@ -51,7 +51,7 @@ class FastCamera:
             
             self.cap = cv2.VideoCapture(gst_str, cv2.CAP_GSTREAMER)
             if not self.cap.isOpened():
-                print("[Camera] Lỗi: Không thể mở GStreamer pipeline")
+                print("[Camera] Error: Cannot open GStreamer pipeline")
                 self.cap = None
                 return False
             
@@ -62,12 +62,12 @@ class FastCamera:
             self.thread = threading.Thread(target=self._update, daemon=True)
             self.thread.start()
             
-            print("[Camera] ✓ Camera CSI khởi động thành công")
+            print("[Camera] ✓ CSI Camera started successfully")
             time.sleep(2)  # Chờ ISP ổn định (như testcam.py)
             return True
             
         except Exception as e:
-            print(f"[Camera] Lỗi khởi động: {e}")
+            print(f"[Camera] Startup error: {e}")
             self.camera_available = False
             return False
     
@@ -85,17 +85,17 @@ class FastCamera:
                     fail_count += 1
                     if fail_count > 150:  # ~1.5 giây liên tục không nhận được frame
                         if self.camera_available:
-                            print("\n[Camera] ❌ Mất tín hiệu từ camera (nvargus-daemon treo). Hãy chạy: sudo systemctl restart nvargus-daemon")
+                            print("\n[Camera] ❌ Lost camera signal (nvargus-daemon hung). Please run: sudo systemctl restart nvargus-daemon")
                             self.camera_available = False
                     time.sleep(0.01)
             except Exception as e:
-                print(f"[Camera] Lỗi đọc frame: {e}")
+                print(f"[Camera] Frame read error: {e}")
                 time.sleep(0.01)
     
     def capture(self, output_dir=None):
         """Chụp ảnh từ camera và lưu vào output_dir"""
         if not self.camera_available or self.frame is None:
-            return None, "❌ Camera CSI không khả dụng"
+            return None, "❌ CSI Camera not available"
         
         try:
             # Lấy output_dir từ config nếu không chỉ định
@@ -123,15 +123,15 @@ class FastCamera:
             
             size_mb = os.path.getsize(filepath) / (1024 * 1024)
             msg = (
-                f"✓ Chụp ảnh thành công\n"
+                f"✓ Capture successful\n"
                 f"File: {filename}\n"
-                f"Độ phân giải: {snap.shape[1]}x{snap.shape[0]}\n"
-                f"Dung lượng: {size_mb:.2f} MB"
+                f"Resolution: {snap.shape[1]}x{snap.shape[0]}\n"
+                f"Size: {size_mb:.2f} MB"
             )
             return filepath, msg
             
         except Exception as e:
-            return None, f"❌ Lỗi chụp ảnh: {e}"
+            return None, f"❌ Capture error: {e}"
     
     def get_current_frame(self):
         """Lấy frame hiện tại"""
