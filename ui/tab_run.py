@@ -41,13 +41,43 @@ def apply_plc_result_state(plc, has_defect):
     if has_defect:
         # Gửi xung M171 = 1 (NG) và tắt M169 = 0 (Busy) đồng thời
         plc.batchwrite_bitunits("M169", [0, 0, 1])  # M169=0, M170=0, M171=1
-        time.sleep(0.2)
-        plc.batchwrite_bitunits("M171", [0])        # Tắt xung M171
+        
+        # Đợi PLC xác nhận bằng cách tắt M1020 (chờ tối đa 1 giây)
+        timeout = time.time() + 1.0
+        while time.time() < timeout:
+            try:
+                read_data = plc.batchread_bitunits("M1020", 1)
+                if not read_data[0]:
+                    break
+            except Exception:
+                break
+            time.sleep(0.02)
+            
+        # Reset tín hiệu kết quả về 0
+        try:
+            plc.batchwrite_bitunits("M171", [0])        # Tắt xung M171
+        except Exception:
+            pass
     else:
         # Gửi xung M170 = 1 (OK) và tắt M169 = 0 (Busy) đồng thời
         plc.batchwrite_bitunits("M169", [0, 1, 0])  # M169=0, M170=1, M171=0
-        time.sleep(0.2)
-        plc.batchwrite_bitunits("M170", [0])        # Tắt xung M170
+        
+        # Đợi PLC xác nhận bằng cách tắt M1020 (chờ tối đa 1 giây)
+        timeout = time.time() + 1.0
+        while time.time() < timeout:
+            try:
+                read_data = plc.batchread_bitunits("M1020", 1)
+                if not read_data[0]:
+                    break
+            except Exception:
+                break
+            time.sleep(0.02)
+            
+        # Reset tín hiệu kết quả về 0
+        try:
+            plc.batchwrite_bitunits("M170", [0])        # Tắt xung M170
+        except Exception:
+            pass
 
 
 def plc_worker():
@@ -155,10 +185,14 @@ def plc_worker():
                         print("[PLC] Đã tắt M169 (Hoàn tất xử lý)")
                     except Exception:
                         pass
-                    time.sleep(2.0)  # hold output step 4 for 2s before resetting
-                    SHARED_STATE["ai_flow_step"] = 0
                     
-                    # Đọc lại trạng thái thực tế của M1020 sau thời gian xử lý và sleep lâu, tránh lệch sườn do delay
+                    # Reset trạng thái AI flow trên UI sau 2s bằng luồng riêng để tránh block luồng PLC chính
+                    def reset_flow_step():
+                        time.sleep(2.0)
+                        SHARED_STATE["ai_flow_step"] = 0
+                    threading.Thread(target=reset_flow_step, daemon=True).start()
+                    
+                    # Đọc lại trạng thái thực tế của M1020 sau thời gian xử lý, tránh lệch sườn do delay
                     try:
                         read_data = plc.batchread_bitunits("M1020", 1)
                         current_m1020_state = read_data[0]
