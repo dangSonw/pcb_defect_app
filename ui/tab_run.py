@@ -632,6 +632,15 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
             gr.Markdown("### 🗄️ Dữ liệu Log (10 mẫu mới nhất)")
             ui_log_table = gr.Dataframe(interactive=False, wrap=True)
             
+    gr.Markdown("---")
+    gr.Markdown("### 🔌 Trạng thái các Bit PLC")
+    with gr.Row():
+        ui_plc_status = gr.Textbox(label=f"Kết nối ({PLC_STATE['ip']})", value="🔴 Mất kết nối", interactive=False, scale=2)
+        ui_m1020 = gr.Textbox(label="M1020 (Trigger)", value="⚫ 0", interactive=False, scale=1)
+        ui_m169 = gr.Textbox(label="M169 (Busy)", value="⚫ 0", interactive=False, scale=1)
+        ui_m170 = gr.Textbox(label="M170 (OK)", value="⚫ 0", interactive=False, scale=1)
+        ui_m171 = gr.Textbox(label="M171 (NG)", value="⚫ 0", interactive=False, scale=1)
+
     # Sự kiện: Chụp từ Camera CSI
     csi_capture_btn.click(
         fn=capture_from_csi,
@@ -732,6 +741,12 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
         def sync_ui():
             step = SHARED_STATE["ai_flow_step"]
             flow_html = _build_flow_html(step)
+            
+            plc_str = "🟢 Đã kết nối" if SHARED_STATE["plc_connected"] else "🔴 Mất kết nối"
+            m1020_str = "🟢 1" if SHARED_STATE["plc_vars"]["M1020"] else "⚫ 0"
+            m169_str = "🟢 1" if SHARED_STATE["plc_vars"]["M169"] else "⚫ 0"
+            m170_str = "🟢 1" if SHARED_STATE["plc_vars"]["M170"] else "⚫ 0"
+            m171_str = "🔴 1" if SHARED_STATE["plc_vars"]["M171"] else "⚫ 0"
 
             updates = [
                 gr.update(value=flow_html),   # ui_ai_flow
@@ -740,6 +755,11 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
                 gr.update(),                   # ui_result_img
                 gr.update(),                   # ui_log_output
                 gr.update(),                   # ui_log_table
+                gr.update(value=plc_str),      # ui_plc_status
+                gr.update(value=m1020_str),    # ui_m1020
+                gr.update(value=m169_str),     # ui_m169
+                gr.update(value=m170_str),     # ui_m170
+                gr.update(value=m171_str),     # ui_m171
             ]
 
             if SHARED_STATE["has_new_capture"]:
@@ -758,5 +778,6 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
             fn=sync_ui,
             inputs=[],
             outputs=[ui_ai_flow, ui_csi_image, ui_csi_status,
-                     ui_result_img, ui_log_output, ui_log_table]
+                     ui_result_img, ui_log_output, ui_log_table,
+                     ui_plc_status, ui_m1020, ui_m169, ui_m170, ui_m171]
         )
