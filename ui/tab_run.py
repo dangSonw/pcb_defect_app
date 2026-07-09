@@ -102,9 +102,9 @@ def plc_worker():
             SHARED_STATE["plc_vars"]["M170"] = read_m169x[1]
             SHARED_STATE["plc_vars"]["M171"] = read_m169x[2]
             
-            # Phát hiện sườn lên (chuyển từ False -> True)
-            if current_m1020_state and not prev_m1020_state:
-                print("[PLC] Nhận lệnh chụp và rà quét AI (sườn lên M1020)")
+            # Phát hiện sườn lên hoặc sườn xuống (thay đổi trạng thái)
+            if current_m1020_state != prev_m1020_state:
+                print(f"[PLC] Nhận lệnh chụp và rà quét AI (thay đổi trạng thái M1020: {prev_m1020_state} -> {current_m1020_state})")
                 try:
                     # Bật M169 báo hiệu đang chụp và xử lý AI, đồng thời xóa các tín hiệu OK/NG cũ
                     plc.batchwrite_bitunits("M169", [1, 0, 0])  # M169=1, M170=0, M171=0
