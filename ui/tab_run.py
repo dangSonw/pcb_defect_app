@@ -42,9 +42,13 @@ def apply_plc_result_state(plc, has_defect):
     if has_defect:
         plc.batchwrite_bitunits("M171", [1])
         plc.batchwrite_bitunits("M170", [0])
+        time.sleep(0.2)
+        plc.batchwrite_bitunits("M171", [0])
     else:
         plc.batchwrite_bitunits("M170", [1])
         plc.batchwrite_bitunits("M171", [0])
+        time.sleep(0.2)
+        plc.batchwrite_bitunits("M170", [0])
 
 
 def plc_worker():
