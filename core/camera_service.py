@@ -92,12 +92,17 @@ class FastCamera:
                 print(f"[Camera] Lỗi đọc frame: {e}")
                 time.sleep(0.01)
     
-    def capture(self, output_dir="outputs"):
+    def capture(self, output_dir=None):
         """Chụp ảnh từ camera và lưu vào output_dir"""
         if not self.camera_available or self.frame is None:
             return None, "❌ Camera CSI không khả dụng"
         
         try:
+            # Lấy output_dir từ config nếu không chỉ định
+            if output_dir is None:
+                cfg = load_system_config()
+                output_dir = cfg.get("output_dir", "outputs")
+            
             os.makedirs(output_dir, exist_ok=True)
             snap = self.frame.copy()
             

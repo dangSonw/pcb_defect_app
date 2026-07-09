@@ -1,9 +1,17 @@
 import gradio as gr
 import os
 from core.yolo_engine import train_yolo_model
+from core.dataset_manager import load_system_config
 
 def start_training(sys_device, sys_model_type, sys_model_path, sys_dataset_path, data_yaml_path, epochs, batch_size, imgsz):
-    yaml_path = data_yaml_path.strip() if data_yaml_path else os.path.join(sys_dataset_path or "", "data.yaml")
+    # Lấy dataset path từ config nếu chưa chỉ định
+    if not data_yaml_path or not data_yaml_path.strip():
+        cfg = load_system_config()
+        dataset_path = cfg.get("dataset_path", "dataset")
+        yaml_path = os.path.join(dataset_path, "data.yaml")
+    else:
+        yaml_path = data_yaml_path.strip()
+    
     result_log = train_yolo_model(
         model_type=sys_model_type,
         model_path=sys_model_path,
@@ -16,6 +24,10 @@ def start_training(sys_device, sys_model_type, sys_model_path, sys_dataset_path,
     return result_log
 
 def render(sys_device, sys_model_type, sys_model_path, sys_dataset_path):
+    # Lấy dataset path từ config
+    cfg = load_system_config()
+    default_data_yaml = os.path.join(cfg.get("dataset_path", "dataset"), "data.yaml")
+    
     with gr.Row():
         with gr.Column(scale=1):
             gr.Markdown("### Thông số Huấn luyện")
@@ -26,7 +38,7 @@ def render(sys_device, sys_model_type, sys_model_path, sys_dataset_path):
             
         with gr.Column(scale=2):
             gr.Markdown("### Giám sát Hệ thống")
-            ui_data_yaml = gr.Textbox(label="Duong dan data.yaml", value="dataset/data.yaml")
+            ui_data_yaml = gr.Textbox(label="Duong dan data.yaml", value=default_data_yaml)
             ui_log_output = gr.Textbox(label="Nhật ký", lines=12, interactive=False, placeholder="Tiến trình huấn luyện sẽ hiển thị ở đây...")
 
     train_btn.click(

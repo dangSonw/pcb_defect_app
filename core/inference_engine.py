@@ -67,8 +67,10 @@ def _mark_anomaly(detections, anomalies):
             det["is_anomaly"] = True
 
 
-def get_color(class_id):
-    # Tạo sẵn bảng màu sắc nét cho từng class_id
+def _draw_detections(image, detections, styles_config, default_line_width=2, default_font_size=1):
+    vis = image.copy()
+    
+    # Fallback color generator
     colors = [
         (255, 56, 56), (255, 157, 151), (255, 112, 31), (255, 178, 29),
         (207, 210, 49), (72, 249, 10), (146, 204, 23), (61, 219, 134),
@@ -76,33 +78,58 @@ def get_color(class_id):
         (52, 69, 147), (100, 115, 255), (0, 24, 236), (132, 56, 255),
         (82, 0, 133), (203, 56, 255), (255, 149, 200), (255, 55, 199)
     ]
-    return colors[class_id % len(colors)]
+    def get_default_color(class_id):
+        return colors[class_id % len(colors)]
 
-
-def _draw_detections(image, detections, line_width=2, font_size=1):
-    vis = image.copy()
-    # Chuyển đổi cỡ chữ giao diện (1-10) sang hệ scale của OpenCV
-    font_scale = 0.5 + (font_size - 1) * 0.15
-    
     for det in detections:
-        x1, y1, x2, y2 = det["box"]
-        color = get_color(det["class_id"])
+        label = det['label']
+        class_id = det['class_id']
+        style = styles_config.get(label, {})
+
+        # Get style properties from config or use defaults
+        color = tuple(style.get('color_bgr', get_default_color(class_id)))
         
-        cv2.rectangle(vis, (x1, y1), (x2, y2), color, int(line_width))
+        # UI font_size (1-10) maps to a scale. JSON `font_size` is a direct scale.
+        default_font_scale = 0.5 + (default_font_size - 1) * 0.15
+        font_scale = float(style.get('font_size', default_font_scale))
+
+        line_width = int(style.get('line_width', default_line_width))
+        text_thickness = max(1, line_width - 1) if line_width > 1 else 1
+
+        x1, y1, x2, y2 = det["box"]
+        
+        cv2.rectangle(vis, (x1, y1), (x2, y2), color, line_width)
+        
+        label_text = f"{det['label']} {det['confidence']:.2f}"
+        
+        (text_w, text_h), baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_thickness)
+        
+        # Position the text box
+        text_y = y1 - 10
+        # If the label would be off-screen, put it below the box instead
+        if text_y - text_h < 0:
+            text_y = y1 + text_h + 10
+            
+        # Draw background rectangle
+        cv2.rectangle(vis, (x1, text_y - text_h - baseline), (x1 + text_w, text_y + baseline), color, cv2.FILLED)
+        
+        # Determine text color (black or white) for contrast
+        text_color = (255, 255, 255) if sum(color) < 450 else (0, 0, 0)
+        
         cv2.putText(
             vis,
-            f"{det['label']} {det['confidence']:.2f}",
-            (x1, max(0, y1 - 6)),
+            label_text,
+            (x1, text_y),
             cv2.FONT_HERSHEY_SIMPLEX,
             font_scale,
-            color,
-            max(1, int(line_width) - 1),
+            text_color,
+            text_thickness,
             cv2.LINE_AA,
         )
     return vis
 
 
-def run_pcb_scan(model_path, image_path, output_dir, conf_thres=0.25, iou_thres=0.5, use_sahi=False, line_width=3, font_size=3):
+def run_pcb_scan(model_path, image_path, output_dir, conf_thres=0.25, line_width=3, font_size=3):
     start_t = time.time()
 
     model_path = resolve_project_path(model_path)
@@ -116,20 +143,28 @@ def run_pcb_scan(model_path, image_path, output_dir, conf_thres=0.25, iou_thres=
     if image is None:
         return None, "LOI: Khong doc duoc anh.", None, None
 
+    # Lấy cấu hình hệ thống, bao gồm cả style cho các lỗi
+    cfg = load_system_config()
+    styles_config = cfg.get("defect_styles", {})
+
     model = _get_model(model_path)
-    raw_dets = infer_with_optional_slicing(model, image, conf=conf_thres, iou=iou_thres, use_sahi=use_sahi)
+    raw_dets = infer_with_optional_slicing(model, image, conf=conf_thres)
     class_names = _get_class_names(model)
     detections = _build_detections(raw_dets, class_names)
 
     # Tạm thời gán rỗng vì hàm detect_anomalies chưa được định nghĩa
     anomalies = []
     _mark_anomaly(detections, anomalies)
-    vis = _draw_detections(image, detections, line_width=line_width, font_size=font_size)
+    # Vẽ các bounding box lên ảnh với style đã được cấu hình
+    vis = _draw_detections(image, detections, styles_config, default_line_width=line_width, default_font_size=font_size)
 
     end_t = time.time()
     processing_time = end_t - start_t
 
-    log_data_dir = os.path.join("/mnt/data_log", "LogData")
+    # Lấy log data directory từ config (đã load ở trên)
+    log_data_base_dir = cfg.get("log_data_base_dir", "outputs/LogData")
+    log_data_dir = resolve_project_path(log_data_base_dir)
+    
     try:
         os.makedirs(log_data_dir, exist_ok=True)
     except Exception:
@@ -140,7 +175,7 @@ def run_pcb_scan(model_path, image_path, output_dir, conf_thres=0.25, iou_thres=
     dt_str = now_dt.strftime("%Y%m%d_%H%M%S")
 
     model_basename = os.path.splitext(os.path.basename(model_path))[0]
-    csv_path = os.path.join(log_data_dir, f"data_{model_basename}.csv")
+    csv_path = os.path.join(log_data_dir, f"data_pcb.csv")
     file_exists = os.path.exists(csv_path)
 
     # Sử dụng trực tiếp class_names từ model theo yêu cầu
@@ -168,7 +203,47 @@ def run_pcb_scan(model_path, image_path, output_dir, conf_thres=0.25, iou_thres=
     status = 1 if has_defect else 0
 
     status_folder = "NG" if status == 1 else "OK"
-    log_img_dir = os.path.join("/mnt/data_log", "LogImage", status_folder)
+    status_text = "NG" if status == 1 else "OK"
+    
+    # Vẽ chữ trạng thái lớn lên ảnh kết quả
+    status_style = cfg.get("result_status_style", {})
+    ok_color = tuple(status_style.get("ok_color_bgr", [0, 255, 0]))
+    ng_color = tuple(status_style.get("ng_color_bgr", [0, 0, 255]))
+    font_scale = float(status_style.get("font_scale", 4))
+    thickness = int(status_style.get("thickness", 10))
+    position = status_style.get("position", [50, 120])
+    try:
+        position = [int(position[0]), int(position[1])]
+    except Exception:
+        position = [50, 120]
+    status_color = ng_color if status == 1 else ok_color
+    (text_w, text_h), baseline = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+    x = max(10, min(position[0], vis.shape[1] - text_w - 10))
+    y = max(text_h + 10, min(position[1], vis.shape[0] - 10))
+    cv2.rectangle(
+        vis,
+        (x - 10, y - text_h - baseline - 10),
+        (x + text_w + 10, y + 10),
+        (0, 0, 0),
+        cv2.FILLED,
+    )
+    text_color = (255, 255, 255) if sum(status_color) < 450 else (0, 0, 0)
+    cv2.putText(
+        vis,
+        status_text,
+        (x, y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale,
+        status_color,
+        thickness,
+        cv2.LINE_AA,
+    )
+    
+    # Lấy log image directory từ config
+    log_image_base_dir = cfg.get("log_image_base_dir", "outputs/LogImage")
+    log_image_dir = resolve_project_path(log_image_base_dir)
+    log_img_dir = os.path.join(log_image_dir, status_folder)
+    
     try:
         os.makedirs(log_img_dir, exist_ok=True)
     except Exception:

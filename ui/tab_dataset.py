@@ -4,7 +4,7 @@ import time
 import os
 import cv2
 import tempfile
-from core.dataset_manager import save_annotation, split_dataset, load_system_config, auto_slice_image
+from core.dataset_manager import save_annotation, split_dataset, load_system_config, auto_slice_image, save_raw_image_to_log
 from core.camera_service import get_camera
 
 GALLERY_CSS = """
@@ -137,10 +137,16 @@ def render(sys_dataset_path, sys_device, camera_available=False):
             with gr.Row():
                 with gr.Column():
                     ui_file_input = gr.File(label="Tải ảnh", file_count="multiple", file_types=["image"], height=150)
-                    ui_enable_sahi = gr.Checkbox(label="✂️ Bật tự động cắt ảnh (SAHI)", value=False)
                 with gr.Column():
                     ui_cam_input = gr.Image(label="Chụp Webcam", sources=["webcam"], type="numpy", height=100)
-                    btn_csi_capture = gr.Button("🎥 Chụp Camera CSI", variant="primary", interactive=camera_available)
+                    btn_csi_capture = gr.Button("🎥 Chụp Camera CSI (Đưa vào bộ nhớ tạm)", variant="primary", interactive=camera_available)
+                    
+                    gr.Markdown("---")
+                    gr.Markdown("### ⚡ Lưu Log Nhanh (Không cần gán nhãn)")
+                    ui_log_status = gr.Radio(["OK", "NG"], label="Trạng thái PCB", value="OK")
+                    with gr.Row():
+                        btn_log_csi_direct = gr.Button("📸 Chụp CSI & Lưu Log Ngay", variant="primary", interactive=camera_available)
+                        btn_log_workspace = gr.Button("💾 Lưu Log ảnh đang xem", variant="secondary")
 
             gr.Markdown("---")
             with gr.Row():
@@ -158,19 +164,19 @@ def render(sys_dataset_path, sys_device, camera_available=False):
     def update_gallery_view(buffer, ann_list):
         return [(p, "✅") if p in ann_list else p for p in buffer]
 
-    def add_from_files(files, current_buffer, ann_list, enable_sahi):
+    def add_from_files(files, current_buffer, ann_list):
         if not files: return update_gallery_view(current_buffer, ann_list), current_buffer, gr.update()
         new_buffer = list(current_buffer)
         for f in files:
-            sliced_paths = auto_slice_image(f.name, enable_sahi)
+            sliced_paths = auto_slice_image(f.name)
             for sp in sliced_paths:
                 if sp not in new_buffer:
                     new_buffer.append(sp)
         return update_gallery_view(new_buffer, ann_list), new_buffer, None
 
-    ui_file_input.change(add_from_files, [ui_file_input, image_buffer, annotated_images, ui_enable_sahi], [ui_gallery, image_buffer, ui_file_input])
+    ui_file_input.change(add_from_files, [ui_file_input, image_buffer, annotated_images], [ui_gallery, image_buffer, ui_file_input])
 
-    def capture_csi(current_buffer, ann_list, enable_sahi):
+    def capture_csi(current_buffer, ann_list):
         cam = get_camera()
         if not cam.is_running:
             cam.start()
@@ -178,16 +184,16 @@ def render(sys_dataset_path, sys_device, camera_available=False):
         filepath, msg = cam.capture(tmp_dir)
         if filepath and os.path.exists(filepath):
             new_buffer = []  # Xoá bộ nhớ tạm cũ, chỉ hiển thị ảnh vừa chụp
-            sliced_paths = auto_slice_image(filepath, enable_sahi)
+            sliced_paths = auto_slice_image(filepath)
             for sp in sliced_paths:
                 if sp not in new_buffer:
                     new_buffer.append(sp)
             return update_gallery_view(new_buffer, ann_list), new_buffer
         return update_gallery_view(current_buffer, ann_list), current_buffer
 
-    btn_csi_capture.click(capture_csi, [image_buffer, annotated_images, ui_enable_sahi], [ui_gallery, image_buffer])
+    btn_csi_capture.click(capture_csi, [image_buffer, annotated_images], [ui_gallery, image_buffer])
 
-    def add_from_webcam(img_array, current_buffer, ann_list, enable_sahi):
+    def add_from_webcam(img_array, current_buffer, ann_list):
         if img_array is None: return update_gallery_view(current_buffer, ann_list), current_buffer, None
         tmp_dir = tempfile.gettempdir()
         filepath = os.path.join(tmp_dir, f"webcam_{int(time.time())}.jpg")
@@ -199,7 +205,7 @@ def render(sys_dataset_path, sys_device, camera_available=False):
                 new_buffer.append(sp)
         return update_gallery_view(new_buffer, ann_list), new_buffer, None
 
-    ui_cam_input.change(add_from_webcam, [ui_cam_input, image_buffer, annotated_images, ui_enable_sahi], [ui_gallery, image_buffer, ui_cam_input])
+    ui_cam_input.change(add_from_webcam, [ui_cam_input, image_buffer, annotated_images], [ui_gallery, image_buffer, ui_cam_input])
 
     def on_gallery_select(evt: gr.SelectData, buffer):
         img_path = buffer[evt.index] if evt.index < len(buffer) else ""
@@ -268,3 +274,38 @@ def render(sys_dataset_path, sys_device, camera_available=False):
         outputs=[ui_status, used_classes_state, annotated_images, ui_gallery]
     )
     btn_split.click(fn=split_dataset, inputs=[sys_dataset_path, ui_train, ui_val, ui_test, ui_bg_ratio], outputs=[ui_status])
+    def handle_log_workspace(image, status):
+        if image is None:
+            return "LỖI: Chưa có ảnh trên màn hình Workspace."
+        return save_raw_image_to_log(image, status_folder=status)
+
+    btn_log_workspace.click(
+        fn=handle_log_workspace,
+        inputs=[ui_work_img, ui_log_status],
+        outputs=[ui_status]
+    )
+
+    # 2. Chụp từ Camera CSI và ném thẳng vào ổ Log
+    def handle_log_csi_direct(status):
+        cam = get_camera()
+        if not cam.is_running:
+            cam.start()
+            
+        tmp_dir = tempfile.gettempdir()
+        filepath, msg = cam.capture(tmp_dir)
+        
+        if filepath and os.path.exists(filepath):
+            # Đọc ảnh bằng OpenCV
+            img = cv2.imread(filepath)
+            if img is not None:
+                # Chuyển đổi BGR (OpenCV) sang RGB (chuẩn chung của app) để hàm log tự xử lý
+                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                return save_raw_image_to_log(img_rgb, status_folder=status)
+            return "LỖI: Không thể đọc ảnh vừa chụp."
+        return f"LỖI Camera: {msg}"
+
+    btn_log_csi_direct.click(
+        fn=handle_log_csi_direct,
+        inputs=[ui_log_status],
+        outputs=[ui_status]
+    )

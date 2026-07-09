@@ -25,7 +25,6 @@ SHARED_STATE = {
         "M169": 0,
         "M170": 0,
         "M171": 0,
-        "D7000": 0
     }
 }
 
@@ -34,6 +33,17 @@ PLC_STATE = {
     "port": 5009,           # Port giao thức MC (Type3E)
     "connected": False
 }
+
+
+def apply_plc_result_state(plc, has_defect):
+    plc.batchwrite_bitunits("M169", [0])
+    if has_defect:
+        plc.batchwrite_bitunits("M171", [1])
+        plc.batchwrite_bitunits("M170", [0])
+    else:
+        plc.batchwrite_bitunits("M170", [1])
+        plc.batchwrite_bitunits("M171", [0])
+
 
 def plc_worker():
     import pymcprotocol
@@ -80,19 +90,18 @@ def plc_worker():
             SHARED_STATE["plc_vars"]["M170"] = read_m169x[1]
             SHARED_STATE["plc_vars"]["M171"] = read_m169x[2]
             
-            read_d7000 = plc.batchread_wordunits("D7000", 1)
-            SHARED_STATE["plc_vars"]["D7000"] = read_d7000[0]
-            
             # Phát hiện sườn lên (chuyển từ False -> True)
             if current_m1020_state and not prev_m1020_state:
                 print("[PLC] Nhận lệnh chụp và rà quét AI (sườn lên M1020)")
                 try:
                     # Bật M169 báo hiệu đang chụp và xử lý AI
                     plc.batchwrite_bitunits("M169", [1])
+                    plc.batchwrite_bitunits("M170", [0])
+                    plc.batchwrite_bitunits("M171", [0])
                     print("[PLC] Đã bật M169 (Đang xử lý)")
                     
                     cfg = load_system_config()
-                    out_dir = "outputs"
+                    out_dir = cfg.get("output_dir", "outputs")
                     device = cfg.get("device", "CPU")
                     model_path = cfg.get("model_path", "")
                     
@@ -104,9 +113,8 @@ def plc_worker():
                         
                         # 2. Rà quét AI ngay lập tức với ảnh vừa chụp
                         res_img, log_text, log_data = start_inference(
-                            sys_device=device, sys_model_path=model_path, sys_output_dir=out_dir, 
-                            webcam_image_path=filepath, use_sahi=False, conf_thres=0.25, 
-                            iou_thres=0.5, line_width=2, font_size=1
+                            sys_device=device, sys_model_path=model_path, sys_output_dir=out_dir,
+                            webcam_image_path=filepath, conf_thres=0.25, line_width=2, font_size=1
                         )
                         if res_img:
                             SHARED_STATE["scan_img"] = res_img
@@ -114,32 +122,15 @@ def plc_worker():
                             SHARED_STATE["scan_data"] = log_data
                             SHARED_STATE["has_new_scan"] = True
                             
-                            # Ghi kết quả vào thanh ghi D7000 (1: NG, 0: OK)
                             has_defect = "So loi detect: 0" not in log_text
-                            plc.batchwrite_wordunits("D7000", [1 if has_defect else 0])
-                            
-                            # Ghi ĐỒNG THỜI: Tắt M169 (Busy) và Bật M170 (OK) / M171 (NG)
-                            bits = [0, 0, 1] if has_defect else [0, 1, 0]
-                            plc.batchwrite_bitunits("M169", bits)
-                            print(f"[PLC] Quét hoàn tất. D7000={1 if has_defect else 0}, M169=0, {'M171=1' if has_defect else 'M170=1'}")
-                            
-                            time.sleep(0.01)
-                            plc.batchwrite_bitunits("M171" if has_defect else "M170", [0])
-                            print(f"[PLC] Đã tắt {'M171' if has_defect else 'M170'}")
+                            apply_plc_result_state(plc, has_defect=has_defect)
+                            print(f"[PLC] Quét hoàn tất. M169=0, {'M171=1' if has_defect else 'M170=1'}")
                         else:
                             print(f"[PLC] Cảnh báo: Lỗi nội bộ khi phân tích AI. Msg: {log_text}")
-                            # Báo lỗi NG (1) nếu AI thất bại
-                            plc.batchwrite_wordunits("D7000", [1])
-                            plc.batchwrite_bitunits("M169", [0, 0, 1]) # M171 = 1 (NG)
-                            time.sleep(0.01)
-                            plc.batchwrite_bitunits("M171", [0])
+                            apply_plc_result_state(plc, has_defect=True)
                     else:
                         print(f"[PLC] Cảnh báo: Không thể chụp ảnh từ Camera. Msg: {msg}")
-                        # Báo NG để dây chuyền không bị dừng
-                        plc.batchwrite_wordunits("D7000", [1])
-                        plc.batchwrite_bitunits("M169", [0, 0, 1]) # M171 = 1 (NG)
-                        time.sleep(0.01)
-                        plc.batchwrite_bitunits("M171", [0])
+                        apply_plc_result_state(plc, has_defect=True)
                 except Exception as proc_err:
                     print(f"[PLC] Lỗi trong quá trình xử lý: {proc_err}")
                 finally:
@@ -240,14 +231,15 @@ def start_inference(
     sys_model_path,
     sys_output_dir,
     webcam_image_path,
-    use_sahi,
     conf_thres,
-    iou_thres,
     line_width=2,
     font_size=1,
 ):
     _ = sys_device  # device is already inferred by backend dependencies
-    output_dir = "outputs"
+    
+    # Lấy output_dir từ config
+    cfg = load_system_config()
+    output_dir = cfg.get("output_dir", "outputs")
 
     in_image = _resolve_image_path(webcam_image_path)
     
@@ -266,8 +258,6 @@ def start_inference(
         image_path=in_image,
         output_dir=output_dir,
         conf_thres=conf_thres,
-        iou_thres=iou_thres,
-        use_sahi=use_sahi,
         line_width=line_width,
         font_size=font_size,
     )
@@ -339,7 +329,6 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
                 ui_m169 = gr.Textbox(label="M169 (Busy)", value="⚫ 0", interactive=False, scale=1)
                 ui_m170 = gr.Textbox(label="M170 (OK)", value="⚫ 0", interactive=False, scale=1)
                 ui_m171 = gr.Textbox(label="M171 (NG)", value="⚫ 0", interactive=False, scale=1)
-                ui_d7000 = gr.Textbox(label="D7000", value="0", interactive=False, scale=1)
             
             gr.Markdown("### 📸 Chọn ảnh để quét")
             
@@ -371,9 +360,7 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
                     ui_uploaded_image = gr.State(None)
             
             gr.Markdown("### ⚙️ Cấu hình rà quét")
-            ui_use_sahi = gr.Checkbox(value=False, label="Kích hoạt SAHI (Rất chậm, chỉ bật nếu cần quét siêu nhỏ)")
             ui_conf_thres = gr.Slider(minimum=0.1, maximum=1.0, value=0.25, step=0.05, label="Ngưỡng tự tin (Confidence Threshold)")
-            ui_iou_thres = gr.Slider(minimum=0.1, maximum=1.0, value=0.5, step=0.05, label="Nguong IoU (NMS)")
             
             with gr.Row():
                 ui_line_width = gr.Slider(minimum=1, maximum=10, value=2, step=1, label="Độ dày Bounding Box")
@@ -408,7 +395,7 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
     )
 
     # Chạy inference với ảnh được chọn (CSI hoặc Upload)
-    def run_with_selected_image(sys_device, sys_model_path, sys_output_dir, csi_image_path, uploaded_image_path, use_sahi, conf_thres, iou_thres, line_width, font_size):
+    def run_with_selected_image(sys_device, sys_model_path, sys_output_dir, csi_image_path, uploaded_image_path, conf_thres, line_width, font_size):
         # Xác định ảnh mới nhất được chọn giữa CSI và Upload
         image_input = None
         if csi_image_path and uploaded_image_path:
@@ -421,7 +408,7 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
                 image_input = csi_image_path
         else:
             image_input = csi_image_path if csi_image_path else uploaded_image_path
-        return start_inference(sys_device, sys_model_path, sys_output_dir, image_input, use_sahi, conf_thres, iou_thres, line_width, font_size)
+        return start_inference(sys_device, sys_model_path, sys_output_dir, image_input, conf_thres, line_width, font_size)
 
     run_btn.click(
         fn=run_with_selected_image,
@@ -431,9 +418,7 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
             sys_output_dir,
             ui_csi_image,
             ui_uploaded_image,
-            ui_use_sahi,
             ui_conf_thres,
-            ui_iou_thres,
             ui_line_width,
             ui_font_size,
         ],
@@ -449,9 +434,8 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
             m169_str = "🟢 1" if SHARED_STATE["plc_vars"]["M169"] else "⚫ 0"
             m170_str = "🟢 1" if SHARED_STATE["plc_vars"]["M170"] else "⚫ 0"
             m171_str = "🔴 1" if SHARED_STATE["plc_vars"]["M171"] else "⚫ 0"
-            d7000_str = str(SHARED_STATE["plc_vars"]["D7000"])
             
-            updates = [gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(value=plc_str), gr.update(value=m1020_str), gr.update(value=m169_str), gr.update(value=m170_str), gr.update(value=m171_str), gr.update(value=d7000_str)]
+            updates = [gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(value=plc_str), gr.update(value=m1020_str), gr.update(value=m169_str), gr.update(value=m170_str), gr.update(value=m171_str)]
             if SHARED_STATE["has_new_capture"]:
                 SHARED_STATE["has_new_capture"] = False
                 updates[0] = SHARED_STATE["capture_path"]
@@ -466,5 +450,5 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
         timer.tick(
             fn=sync_ui,
             inputs=[],
-            outputs=[ui_csi_image, ui_csi_status, ui_result_img, ui_log_output, ui_log_table, ui_plc_status, ui_m1020, ui_m169, ui_m170, ui_m171, ui_d7000]
+            outputs=[ui_csi_image, ui_csi_status, ui_result_img, ui_log_output, ui_log_table, ui_plc_status, ui_m1020, ui_m169, ui_m170, ui_m171]
         )

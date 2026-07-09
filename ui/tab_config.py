@@ -117,9 +117,9 @@ def get_hardware_info():
     except Exception as e:
         return f"Error getting hardware info: {e}"
 
-def save_settings(device, model_type, model_path, dataset_path, output_dir, sahi_slice_size, sahi_overlap_ratio, defect_classes, cam_width, cam_height, cam_quality):
+def save_settings(device, model_type, model_path, dataset_path, output_dir, defect_classes, cam_width, cam_height, cam_quality):
     try:
-        payload = save_system_config(device, model_type, model_path, dataset_path, output_dir, sahi_slice_size, sahi_overlap_ratio, defect_classes, cam_width, cam_height, cam_quality)
+        payload = save_system_config(device, model_type, model_path, dataset_path, output_dir, defect_classes=defect_classes, cam_width=cam_width, cam_height=cam_height, cam_quality=cam_quality)
         msg = f"Da luu cau hinh: {payload['device']} | {payload['model_type']}"
         return (
             payload["device"],
@@ -127,8 +127,6 @@ def save_settings(device, model_type, model_path, dataset_path, output_dir, sahi
             payload["model_path"],
             payload["dataset_path"],
             payload["output_dir"],
-            payload["sahi_slice_size"],
-            payload["sahi_overlap_ratio"],
             payload["defect_classes"],
             payload["cam_width"],
             payload["cam_height"],
@@ -137,7 +135,7 @@ def save_settings(device, model_type, model_path, dataset_path, output_dir, sahi
         )
     except Exception as e:
         msg = f"Loi luu cau hinh: {e}"
-        return device, model_type, model_path, dataset_path, output_dir, sahi_slice_size, sahi_overlap_ratio, defect_classes, cam_width, cam_height, cam_quality, msg
+        return device, model_type, model_path, dataset_path, output_dir, defect_classes, cam_width, cam_height, cam_quality, msg
 
 # --- HÀM VẼ GIAO DIỆN ---
 
@@ -199,13 +197,9 @@ def render(sys_device, sys_model_type, sys_model_path, sys_dataset_path, sys_out
     gr.Markdown("---")
 
     with gr.Row():
-        with gr.Column(scale=1):
-            gr.Markdown("### Cấu hình Thuật toán SAHI")
-            ui_sahi_slice_size = gr.Number(value=cfg.get("sahi_slice_size", 640), label="Kích thước cắt ảnh (Slice Size)", precision=0)
-            ui_sahi_overlap_ratio = gr.Slider(minimum=0.0, maximum=0.9, value=cfg.get("sahi_overlap_ratio", 0.2), step=0.05, label="Tỉ lệ chồng lấn (Overlap Ratio)")
         with gr.Column(scale=2):
             gr.Markdown("### Cấu hình Báo cáo Lỗi đầu ra")
-            ui_defect_classes = gr.Textbox(value=cfg.get("defect_classes", "short_circuit, open_circuit, missing_hole, mouse_bite, spur, copper_salvage"), label="Danh sách Class Lỗi (cách nhau bằng dấu phẩy)")
+            ui_defect_classes = gr.Textbox(value=cfg.get("defect_classes", "Empty, Excess Solder, Exposed Copper, Misaligned Header, Missing Component, Scratched, Solder Bridge"), label="Danh sách Class Lỗi (cách nhau bằng dấu phẩy)")
 
     gr.Markdown("---")
     
@@ -232,6 +226,6 @@ def render(sys_device, sys_model_type, sys_model_path, sys_dataset_path, sys_out
 
     save_btn.click(
         fn=save_settings,
-        inputs=[ui_device, ui_model_type, ui_model_path, ui_dataset_path, ui_output_dir, ui_sahi_slice_size, ui_sahi_overlap_ratio, ui_defect_classes, ui_cam_width, ui_cam_height, ui_cam_quality],
-        outputs=[sys_device, sys_model_type, sys_model_path, sys_dataset_path, sys_output_dir, ui_sahi_slice_size, ui_sahi_overlap_ratio, ui_defect_classes, ui_cam_width, ui_cam_height, ui_cam_quality, status_msg]
+        inputs=[ui_device, ui_model_type, ui_model_path, ui_dataset_path, ui_output_dir, ui_defect_classes, ui_cam_width, ui_cam_height, ui_cam_quality],
+        outputs=[sys_device, sys_model_type, sys_model_path, sys_dataset_path, sys_output_dir, ui_defect_classes, ui_cam_width, ui_cam_height, ui_cam_quality, status_msg]
     )

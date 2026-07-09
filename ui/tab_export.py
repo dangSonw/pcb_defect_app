@@ -2,6 +2,7 @@ import gradio as gr
 import tkinter as tk
 from tkinter import filedialog
 from core.exporter import export_model
+from core.dataset_manager import load_system_config
 
 def open_file_dialog():
     root = tk.Tk()
@@ -12,7 +13,10 @@ def open_file_dialog():
     return file_path if file_path else ""
 
 def start_exporting(sys_device, model_path_input, sys_model_path, export_format, use_half, use_int8, imgsz):
-    target_path = model_path_input if model_path_input else sys_model_path
+    # Prefer explicit user input, then sys_model_path, then config source_model_pt
+    cfg = load_system_config()
+    fallback = cfg.get("source_model_pt", "")
+    target_path = model_path_input if model_path_input else (sys_model_path if sys_model_path else fallback)
     if not target_path:
         return sys_model_path, "LOI: Chua co duong dan model. Hay chon file hoac cau hinh o Tab 1."
     log_text, new_model_path = export_model(target_path, export_format, use_half, use_int8, imgsz, sys_device)
@@ -30,7 +34,8 @@ def render(sys_device, sys_model_path):
         with gr.Column(scale=2):
             gr.Markdown("### Nguồn dữ liệu")
             with gr.Row():
-                ui_target_model = gr.Textbox(placeholder="Đường dẫn sẽ lấy từ Cài đặt nếu để trống...", scale=5, label="File Model gốc (.pt)")
+                cfg = load_system_config()
+                ui_target_model = gr.Textbox(placeholder="Đường dẫn sẽ lấy từ Cài đặt nếu để trống...", scale=5, label="File Model gốc (.pt)", value=cfg.get("source_model_pt", ""))
                 btn_browse_target = gr.Button("Duyệt File", scale=1)
                 
             export_btn = gr.Button("BẮT ĐẦU BIÊN DỊCH", variant="primary")

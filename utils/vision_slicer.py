@@ -1,34 +1,15 @@
-import cv2
 import numpy as np
 
 
-def infer_with_optional_slicing(model, image_bgr, conf=0.25, iou=0.5, use_sahi=False):
-    """
-    Run prediction with optional tiled slicing.
-    Returns a flat list: [x1,y1,x2,y2,cls_id,score]
-    """
+def infer_with_optional_slicing(model, image_bgr, conf=0.25, iou=None, use_sahi=False):
+    """Run a single prediction pass without SAHI or NMS-based post-processing."""
     if image_bgr is None:
         return []
-    if not use_sahi:
-        return _infer_one(model, image_bgr, 0, 0, conf, iou)
-
-    h, w = image_bgr.shape[:2]
-    tile = 640
-    overlap = 0.2
-    step = int(tile * (1.0 - overlap))
-    detections = []
-    for y in range(0, h, max(1, step)):
-        for x in range(0, w, max(1, step)):
-            crop = image_bgr[y:min(y + tile, h), x:min(x + tile, w)]
-            if crop.size == 0:
-                continue
-            dets = _infer_one(model, crop, x, y, conf, iou)
-            detections.extend(dets)
-    return _nms_merge(detections, iou_threshold=iou)
+    return _infer_one(model, image_bgr, 0, 0, conf)
 
 
-def _infer_one(model, image_bgr, offset_x, offset_y, conf, iou):
-    results = model.predict(source=image_bgr, conf=float(conf), iou=float(iou), verbose=False)
+def _infer_one(model, image_bgr, offset_x, offset_y, conf):
+    results = model.predict(source=image_bgr, conf=float(conf), verbose=False)
     if not results:
         return []
     out = []

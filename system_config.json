@@ -1,16 +1,40 @@
 {
-  "device": "Jetson GPU (TensorRT/CUDA)",
-  "model_type": "yolov11n",
-  "model_path": "weights/pcb.engine",
+  "device": "CPU",
+  "model_type": "yolov26s",
+  "model_path": "weights/pcb_final_final_best.engine",
   "dataset_path": "dataset",
-  "output_dir": "outputs",
-  "sahi_slice_size": 1280,
-  "sahi_overlap_ratio": 0.4,
-  "defect_classes": "short_circuit, open_circuit, missing_hole, mouse_bite, spur, copper_salvage",
+  "output_dir": "/mnt/data_log",
+  "log_data_base_dir": "/mnt/data_log/LogData",
+  "log_image_base_dir": "/mnt/data_log/LogImage",
+  "train_output_dir": "/mnt/data_log/train",
+  "export_output_dir": "weights",
+  "raw_data_dir": "dataset/raw_data",
+  "sahi_slice_size": 640,
+  "sahi_overlap_ratio": 0.2,
+  "defect_classes": "",
   "cam_width": 1280,
   "cam_height": 720,
-  "cam_quality": 80,
-  "model": "yolov11n",
+  "cam_quality": 95,
+  "model": "yolov26s",
   "dataset": "dataset",
-  "output": "outputs"
+  "output": "/mnt/data_log",
+  "result_status_style": {
+    "ok_color_bgr": [
+      0,
+      255,
+      0
+    ],
+    "ng_color_bgr": [
+      0,
+      0,
+      255
+    ],
+    "font_scale": 2,
+    "thickness": 5,
+    "position": [
+      50,
+      120
+    ]
+  },
+  "source_model_pt": "weights/pcb_final_final_best.pt"
 }

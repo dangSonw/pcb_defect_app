@@ -1,6 +1,7 @@
 import os
 import time
 from ultralytics import YOLO
+from core.dataset_manager import load_system_config, resolve_project_path
 
 def export_model(model_path, export_format, use_half, use_int8, imgsz, device):
     try:
@@ -23,12 +24,20 @@ def export_model(model_path, export_format, use_half, use_int8, imgsz, device):
 
         started = time.time()
         model = YOLO(model_path)
+        
+        # Lấy export output directory từ config
+        cfg = load_system_config()
+        export_output_dir = cfg.get("export_output_dir", "weights")
+        export_output_dir = resolve_project_path(export_output_dir)
+        os.makedirs(export_output_dir, exist_ok=True)
+        
         exported_path = model.export(
             format=format_code,
             half=use_half,
             int8=use_int8,
             imgsz=int(imgsz),
             device=export_device,
+            project=export_output_dir,
             simplify=True if format_code == "onnx" else False
         )
         elapsed = time.time() - started

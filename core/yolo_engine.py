@@ -1,5 +1,5 @@
 import os
-from core.dataset_manager import resolve_project_path, PROJECT_ROOT
+from core.dataset_manager import resolve_project_path, PROJECT_ROOT, load_system_config
 
 def train_yolo_model(model_type, model_path, data_yaml_path, epochs, batch_size, imgsz, device):
     try:
@@ -75,13 +75,18 @@ def train_yolo_model(model_type, model_path, data_yaml_path, epochs, batch_size,
         
         model = YOLO(model_name)
 
+        # Lấy train output directory từ config
+        cfg = load_system_config()
+        train_output_base = cfg.get("train_output_dir", "outputs/train")
+        train_output_base = resolve_project_path(train_output_base)
+        
         results = model.train(
             data=data_yaml_path,
             epochs=int(epochs),
             batch=int(batch_size),
             imgsz=int(imgsz),
             device=train_device,
-            project="outputs/train",
+            project=train_output_base,
             name=f"{model_type}_pcb",
             exist_ok=True
         )
