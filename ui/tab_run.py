@@ -38,17 +38,16 @@ PLC_STATE = {
 
 
 def apply_plc_result_state(plc, has_defect):
-    plc.batchwrite_bitunits("M169", [0])
     if has_defect:
-        plc.batchwrite_bitunits("M171", [1])
-        plc.batchwrite_bitunits("M170", [0])
+        # Gửi xung M171 = 1 (NG) và tắt M169 = 0 (Busy) đồng thời
+        plc.batchwrite_bitunits("M169", [0, 0, 1])  # M169=0, M170=0, M171=1
         time.sleep(0.2)
-        plc.batchwrite_bitunits("M171", [0])
+        plc.batchwrite_bitunits("M171", [0])        # Tắt xung M171
     else:
-        plc.batchwrite_bitunits("M170", [1])
-        plc.batchwrite_bitunits("M171", [0])
+        # Gửi xung M170 = 1 (OK) và tắt M169 = 0 (Busy) đồng thời
+        plc.batchwrite_bitunits("M169", [0, 1, 0])  # M169=0, M170=1, M171=0
         time.sleep(0.2)
-        plc.batchwrite_bitunits("M170", [0])
+        plc.batchwrite_bitunits("M170", [0])        # Tắt xung M170
 
 
 def plc_worker():
@@ -107,11 +106,9 @@ def plc_worker():
             if current_m1020_state and not prev_m1020_state:
                 print("[PLC] Nhận lệnh chụp và rà quét AI (sườn lên M1020)")
                 try:
-                    # Bật M169 báo hiệu đang chụp và xử lý AI
-                    plc.batchwrite_bitunits("M169", [1])
-                    plc.batchwrite_bitunits("M170", [0])
-                    plc.batchwrite_bitunits("M171", [0])
-                    print("[PLC] Đã bật M169 (Đang xử lý)")
+                    # Bật M169 báo hiệu đang chụp và xử lý AI, đồng thời xóa các tín hiệu OK/NG cũ
+                    plc.batchwrite_bitunits("M169", [1, 0, 0])  # M169=1, M170=0, M171=0
+                    print("[PLC] Đã bật M169 (Đang xử lý) và xóa kết quả cũ")
                     
                     cfg = load_system_config()
                     out_dir = cfg.get("output_dir", "outputs")
