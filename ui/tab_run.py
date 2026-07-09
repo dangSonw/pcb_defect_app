@@ -78,6 +78,13 @@ def plc_worker():
                 print(f"[PLC] Đã kết nối thành công tới {PLC_STATE['ip']}:{PLC_STATE['port']}")
                 time.sleep(0.1) # Đợi PLC ổn định socket sau khi kết nối
                 
+                # Khởi tạo prev_m1020_state bằng giá trị hiện tại của PLC để tránh việc nhận nhầm sườn lên khi mới kết nối
+                try:
+                    init_data = plc.batchread_bitunits("M1020", 1)
+                    prev_m1020_state = init_data[0]
+                except Exception:
+                    prev_m1020_state = False
+                
             if not plc:
                 continue
                 
@@ -96,13 +103,8 @@ def plc_worker():
             if current_m1020_state and not prev_m1020_state:
                 print("[PLC] Nhận lệnh chụp và rà quét AI (sườn lên M1020)")
                 try:
-                    # Bật M169 báo hiệu đang chụp và xử lý AI, đồng thời reset M1020 về 0 để clear trigger
+                    # Bật M169 báo hiệu đang chụp và xử lý AI
                     plc.batchwrite_bitunits("M169", [1])
-                    try:
-                        plc.batchwrite_bitunits("M1020", [0])
-                        print("[PLC] Đã gửi lệnh reset M1020 về 0")
-                    except Exception as reset_err:
-                        print(f"[PLC] Lỗi reset M1020: {reset_err}")
                     plc.batchwrite_bitunits("M170", [0])
                     plc.batchwrite_bitunits("M171", [0])
                     print("[PLC] Đã bật M169 (Đang xử lý)")
