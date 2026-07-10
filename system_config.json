@@ -1,7 +1,7 @@
 {
     "device": "CPU",
     "model_type": "yolov26s",
-    "model_path": "weights/yolov26l.pt",
+    "model_path": "weights/pcb_final_final_best.engine",
     "dataset_path": "dataset",
     "output_dir": "/mnt/data_log",
     "log_data_base_dir": "/mnt/data_log/LogData",
