@@ -305,11 +305,11 @@ def start_inference(
     
     if not in_image or not os.path.exists(in_image):
         error_msg = (
-            "❌ ERROR: No image to scan!\n\n"
+            "ERROR: No image to scan!\n\n"
             "INSTRUCTIONS:\n"
-            "1. Use CSI Camera: Click '🎥 Capture from CSI Camera'\n"
-            "2. Upload image: Choose '📤 Upload from Computer' tab and upload an image\n"
-            "3. Then click '▶️ START SCANNING'"
+            "1. Use CSI Camera: Click 'Capture from CSI Camera'\n"
+            "2. Upload image: Choose 'Upload from Computer' tab and upload an image\n"
+            "3. Then click 'START SCANNING'"
         )
         return None, error_msg, []
 
@@ -408,15 +408,15 @@ def _build_flow_html(active_step: int) -> str:
       4 = Output Handling    (bottom-left)
     """
     plc_info  = "PLC: Disconnected" if not SHARED_STATE["plc_connected"] else "PLC: Connected"
-    plc_icon  = "\U0001f534" if not SHARED_STATE["plc_connected"] else "\U0001f7e2"
+    plc_icon  = "\u25CF" if not SHARED_STATE["plc_connected"] else "\u25CF"
     plc_color = "#dc2626"    if not SHARED_STATE["plc_connected"] else "#16a34a"
 
     status_map = {
-        0: "\u23f8\ufe0f Waiting for activation command...",
-        1: "\U0001f4f7 Acquiring data from Camera...",
-        2: "\U0001f527 Pre-processing image...",
-        3: "\U0001f9e0 AI Model inferring...",
-        4: "\u2705 Processing completed \u2014 Display & Storage",
+        0: "Waiting for activation command...",
+        1: "Acquiring data from Camera...",
+        2: "Pre-processing image...",
+        3: "AI Model inferring...",
+        4: "Processing completed \u2014 Display & Storage",
     }
     status_label = status_map.get(active_step, "")
 
@@ -555,7 +555,7 @@ def _build_flow_html(active_step: int) -> str:
         '<div style="display:flex;align-items:flex-start;justify-content:space-between;'
         'gap:6px;flex-wrap:wrap;min-width:0;margin-bottom:4px;">'
         '<span style="color:#1e293b;font-size:0.88rem;font-weight:700;min-width:0;">'
-        "\U0001f916 AI Processing Flow</span>"
+        "AI Processing Flow</span>"
         f'<span style="color:{plc_color};font-size:0.7rem;font-weight:600;'
         f'white-space:nowrap;flex-shrink:0;">{plc_icon} {plc_info}</span>'
         "</div>"
@@ -622,19 +622,19 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
                 label="AI Processing Flow"
             )
 
-            gr.Markdown("### 📸 Select Image to Scan")
+            gr.Markdown("### Select Image to Scan")
             
             # Hiển thị cảnh báo nếu camera không khả dụng
             if not camera_available:
-                gr.Markdown("⚠️ **CSI Camera is not available** - Use Upload mode")
+                gr.Markdown("**CSI Camera is not available** - Use Upload mode")
             
             # Tab cho 2 phương thức input
             with gr.Tabs():
-                with gr.TabItem("🎥 Jetson CSI Camera"):
+                with gr.TabItem("Jetson CSI Camera"):
                     gr.Markdown("Capture directly from the CSI camera on Jetson Nano")
                     ui_csi_image = gr.Image(label="Recently Captured Image", type="filepath", interactive=False)
                     csi_capture_btn = gr.Button(
-                        "🎥 Capture from CSI Camera" if camera_available else "❌ Camera not available",
+                        "Capture from CSI Camera" if camera_available else "Camera not available",
                         variant="secondary", 
                         size="lg",
                         interactive=camera_available
@@ -645,28 +645,28 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
                         value="Camera not available" if not camera_available else "Ready"
                     )
                 
-                with gr.TabItem("📤 Upload from Computer"):
+                with gr.TabItem("Upload from Computer"):
                     gr.Markdown("Upload an image from your computer")
                     ui_upload_image = gr.Image(type="filepath", sources=["upload"], label="Select PCB Image", scale=1)
                     ui_upload_status = gr.Textbox(label="Upload status", interactive=False, value="Waiting for upload...")
                     ui_uploaded_image = gr.State(None)
             
-            gr.Markdown("### ⚙️ Scan Configuration")
+            gr.Markdown("### Scan Configuration")
             ui_conf_thres = gr.Slider(minimum=0.1, maximum=1.0, value=0.25, step=0.05, label="Confidence Threshold")
             
             with gr.Row():
                 ui_line_width = gr.Slider(minimum=1, maximum=10, value=2, step=1, label="Bounding Box Thickness")
                 ui_font_size = gr.Slider(minimum=1, maximum=10, value=1, step=1, label="Font Size")
             
-            run_btn = gr.Button("▶️ START SCANNING", variant="primary", size="lg")
-            ui_log_output = gr.Textbox(label="📋 Report", lines=8, interactive=False)
+            run_btn = gr.Button("START SCANNING", variant="primary", size="lg")
+            ui_log_output = gr.Textbox(label="Report", lines=8, interactive=False)
 
         # COLUMN 2: VISUAL RESULT
         with gr.Column(scale=2):
-            gr.Markdown("### 📊 Visual QA/QC Monitor")
+            gr.Markdown("### Visual QA/QC Monitor")
             ui_result_img = gr.Image(label="Result Image (Defects Marked)", type="filepath")
             
-            gr.Markdown("### 🗄️ Log Data (10 Latest Samples)")
+            gr.Markdown("### Log Data (10 Latest Samples)")
             ui_log_table = gr.Dataframe(interactive=False, wrap=True)
             
     gr.Markdown("---")
@@ -707,7 +707,7 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
         # ── STEP 1: Data Acquisition ────────────────────────────────────────
         # Light up block INSTANTLY the moment acquisition begins
         SHARED_STATE["ai_flow_step"] = 1
-        yield _build_flow_html(1), gr.update(), "📷 Acquiring data from Camera...", gr.update()
+        yield _build_flow_html(1), gr.update(), "Acquiring data from Camera...", gr.update()
 
         # Actual work: validate & select image source
         csi_ok    = bool(csi_image_path    and os.path.exists(str(csi_image_path)))
@@ -731,12 +731,12 @@ def render(sys_device, sys_model_path, sys_output_dir, camera_available=False, a
 
         # ── STEP 2: Pre-processing ──────────────────────────────────────────
         SHARED_STATE["ai_flow_step"] = 2
-        yield _build_flow_html(2), gr.update(), "🔧 Pre-processing image (resize · normalize)...", gr.update()
+        yield _build_flow_html(2), gr.update(), "Pre-processing image (resize · normalize)...", gr.update()
 
         # ── STEP 3: Model Inference ─────────────────────────────────────────
         # Light block BEFORE calling inference so user sees step 3 during the wait
         SHARED_STATE["ai_flow_step"] = 3
-        yield _build_flow_html(3), gr.update(), "🧠 Model AI đang suy luận...", gr.update()
+        yield _build_flow_html(3), gr.update(), "Model AI đang suy luận...", gr.update()
 
         # Actual inference (longest step — block stays lit for its real duration)
         display_img, log_text, log_data = start_inference(

@@ -139,14 +139,14 @@ def render(sys_dataset_path, sys_device, camera_available=False):
                     ui_file_input = gr.File(label="Upload Images", file_count="multiple", file_types=["image"], height=150)
                 with gr.Column():
                     ui_cam_input = gr.Image(label="Capture from Webcam", sources=["webcam"], type="numpy", height=100)
-                    btn_csi_capture = gr.Button("🎥 Capture CSI Camera (Add to Temporary Storage)", variant="primary", interactive=camera_available)
+                    btn_csi_capture = gr.Button("Capture CSI Camera (Add to Temporary Storage)", variant="primary", interactive=camera_available)
                     
                     gr.Markdown("---")
-                    gr.Markdown("### ⚡ Quick Log Saving (No Labeling Needed)")
+                    gr.Markdown("### Quick Log Saving (No Labeling Needed)")
                     ui_log_status = gr.Radio(["OK", "NG"], label="PCB Status", value="OK")
                     with gr.Row():
-                        btn_log_csi_direct = gr.Button("📸 Capture CSI & Save Log Instantly", variant="primary", interactive=camera_available)
-                        btn_log_workspace = gr.Button("💾 Save Current Workspace Image to Log", variant="secondary")
+                        btn_log_csi_direct = gr.Button("Capture CSI & Save Log Instantly", variant="primary", interactive=camera_available)
+                        btn_log_workspace = gr.Button("Save Current Workspace Image to Log", variant="secondary")
 
             gr.Markdown("---")
             with gr.Row():
@@ -155,7 +155,7 @@ def render(sys_dataset_path, sys_device, camera_available=False):
                     ui_current_box_data = gr.Textbox(value="", elem_id="box-transfer", interactive=True)
                     ui_class_input = gr.Textbox(label="Enter Class (Press Enter)", placeholder="Example: short_circuit")
                     btn_confirm_box = gr.Button("CONFIRM BOX", variant="primary")
-                    btn_undo_box = gr.Button("⏪ Undo Last Drawn Box", variant="secondary")
+                    btn_undo_box = gr.Button("Undo Last Drawn Box", variant="secondary")
 
             with gr.Row():
                 btn_save_final = gr.Button("SAVE ALL LABELS", variant="primary")

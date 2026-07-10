@@ -214,7 +214,7 @@ def render(sys_device, sys_model_type, sys_model_path, sys_dataset_path, sys_out
     gr.Markdown("---")
     
     with gr.Row():
-        check_hw_btn = gr.Button("🔍 Check Hardware", variant="secondary", scale=1)
+        check_hw_btn = gr.Button("Check Hardware", variant="secondary", scale=1)
         save_btn = gr.Button("Save System Settings", variant="primary", scale=1)
         status_msg = gr.Textbox(label="Status Terminal", interactive=False, scale=2)
 
