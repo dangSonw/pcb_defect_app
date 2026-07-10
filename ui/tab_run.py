@@ -167,7 +167,7 @@ def plc_worker():
                             SHARED_STATE["scan_data"] = log_data
                             SHARED_STATE["has_new_scan"] = True
                             
-                            has_defect = "So loi detect: 0" not in log_text
+                            has_defect = "Detected defects: 0" not in log_text
                             apply_plc_result_state(plc, has_defect=has_defect)
                             print(f"[PLC] Scan completed. M169=0, {'M171=1' if has_defect else 'M170=1'}")
                         else:
